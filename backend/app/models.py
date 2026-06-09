@@ -40,3 +40,14 @@ class SimulationResults(BaseModel):
     net_profit: float = 0
     total_active_users: float = Field(ge=0)
     monthly_results: list[MonthSimulation]
+
+class ExperimentSummary(BaseModel):
+    baseline_net: float = 0
+    experiment_net: float = 0
+    net_profit_uplift: float = 0
+    baseline_overtake_month: int | None
+    main_driver: str
+class ExperimentOutcome(BaseModel):
+    baseline: SimulationResults
+    experiment: SimulationResults
+    summary: ExperimentSummary

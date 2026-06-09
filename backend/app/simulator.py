@@ -6,7 +6,7 @@ def simulate():
 def clamp(x: int):
     return max(0, min(1, x)) 
 
-def simulate_metrics(metrics: BaselineMetrics, months: int):
+def simulate_metrics(metrics: BaselineMetrics, months: int) -> SimulationResults:
     active_users = float(metrics.starting_users)
     net_profit = 0.0
 
@@ -76,14 +76,14 @@ def simulate_business_experiment(request: SimulationRequest):
     experiment_results = simulate_metrics(simulation, months)
 
     ## set to pydantic method
-    return {
-        "baseline": baseline_results,
-        "experiment": experiment_results,
-        "summary": {
-            "baseline_net": baseline_results.net_profit,
-            "experiment_net": experiment_results.net_profit,
-            "net_profit_uplift": experiment_results.net_profit-baseline_results.net_profit,
-            "experiment_break_even_month": find_break_even_month(baseline_results.monthly_results, experiment_results.monthly_results),
-            "main_driver": find_main_driver(experiment)
-        }
-    }
+    return ExperimentOutcome(
+        baseline = baseline_results,
+        experiment = experiment_results,
+        summary = ExperimentSummary(
+            baseline_net = baseline_results.net_profit,
+            experiment_net = experiment_results.net_profit,
+            net_profit_uplift = experiment_results.net_profit-baseline_results.net_profit,
+            baseline_overtake_month = find_break_even_month(baseline_results.monthly_results, experiment_results.monthly_results),
+            main_driver = find_main_driver(experiment)
+        )
+    )
