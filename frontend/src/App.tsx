@@ -2,6 +2,9 @@ import { useState } from 'react'
  import {
     LineChart,
     Line,
+    Bar,
+    BarChart,
+    Cell,
     XAxis,
     YAxis,
     CartesianGrid,
@@ -66,6 +69,65 @@ const experimentFields: Array<{
   { key: "fixed_monthly_cost_delta", label: "Fixed cost delta", step: 0.01 },
 ];
 
+type LineConfig = {
+  key: string;
+  name: string;
+  colour: string;
+};
+
+type StandardLineChartProps = {
+  title: string;
+  data: Array<Record<string, number | string>>;
+  lines: Array<LineConfig>;
+  yTickFormatter: (value: number) => string;
+  tooltipFormatter: (value: number) => string;
+  monthTickInterval: number;
+};
+
+function StandardLineChart({title, data, lines, yTickFormatter, tooltipFormatter, monthTickInterval}: StandardLineChartProps) {
+  return (
+    <section>
+      <h2>{title}</h2>
+
+      <div style={{ width: "100%", height: 320, margin: "0 auto" }}>
+        <ResponsiveContainer>
+          <LineChart data={data} margin={{ top: 20, right: 32, left: 92, bottom: 36 }}>
+            <CartesianGrid strokeDasharray="3 3" />
+
+            <XAxis
+              dataKey="month"
+              interval={monthTickInterval}
+              label={{ value: "Month", fontWeight: "Bold", position: "insideBottom", offset: -16 }}
+            />
+
+            <YAxis
+              width={90}
+              tickFormatter={(value) => yTickFormatter(Number(value))}
+            />
+
+            <Tooltip
+              labelFormatter={(label) => `Month ${label}`}
+              formatter={(value) => tooltipFormatter(Number(value))}
+            />
+
+            {lines.map((line) => (
+              <Line
+                key={line.key}
+                type="monotone"
+                dataKey={line.key}
+                stroke={line.colour}
+                strokeWidth={2}
+                dot={false}
+                name={line.name}
+              />
+            ))}
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
+    </section>
+  );
+}
+
 
 function App() {
   const [currencyType, setCurrencyType] = useState<"GBP" | "USD">("GBP");
@@ -124,7 +186,7 @@ function App() {
     const data: ApiTypes.ExperimentOutcome = await response.json();
     setResult(data);
   }
-  const profitChartData =
+  const cumulativeProfitChartData =
       result?.baseline.monthly_results.map((baselineMonth, index) => {
         const experimentMonth = result.experiment.monthly_results[index];
 
@@ -134,15 +196,44 @@ function App() {
           experiment: experimentMonth.cumulative_net_profit,
         };
       }) ?? [];
-  const userChartData =
-    result?.experiment.monthly_results.map((month) => ({
-      month: month.month,
-      active: month.active_users,
-      retained: month.retained_users,
-      activated: month.activated_users,
-      paying: month.paying_users,
+  const netProfitChartData =
+      result?.baseline.monthly_results.map((baselineMonth, index) => {
+        const experimentMonth = result.experiment.monthly_results[index];
+
+        return {
+          month: baselineMonth.month,
+          baseline: baselineMonth.monthly_net,
+          experiment: experimentMonth.monthly_net
+        }
+      }) ?? [];
+  const activeUsersChartData =
+    result?.baseline.monthly_results.map((baselineMonth, index) => {
+      const experimentMonth = result.experiment.monthly_results[index];
+
+      return {
+          month: baselineMonth.month,
+          active_baseline: baselineMonth.active_users,
+          active_experiment: experimentMonth.active_users,
+          retained_baseline: baselineMonth.retained_users,
+          retained_experiment: experimentMonth.retained_users
+      }
+    }) ?? [];
+  const payingUsersChartData =
+      result?.baseline.monthly_results.map((baselineMonth, index) => {
+        const experimentMonth = result.experiment.monthly_results[index];
+
+        return {
+          month: baselineMonth.month,
+          baseline: baselineMonth.paying_users,
+          experiment: experimentMonth.paying_users
+        }
+      }) ?? [];
+  const driverChartData =
+    result?.summary.driver_breakdown.map((driver) => ({
+      name: driver.label,
+      impact: driver.net_profit_uplift,
     })) ?? [];
-  const monthTickInterval = profitChartData.length > 24 ? Math.max(0, Math.floor(profitChartData.length/12)) : 0
+  const monthTickInterval = cumulativeProfitChartData.length > 24 ? Math.max(0, Math.floor(cumulativeProfitChartData.length/12)) : 0
 
   return (
     <main>
@@ -206,119 +297,105 @@ function App() {
       <button onClick={runSimulation}>
         Run Simulation
       </button>
-      {result && (
+    {result && (
         <section>
         <h2>Driver Breakdown</h2>
-        {result?.summary.driver_breakdown.map((driver: ApiTypes.DriverImpact) => (
+        {/* {result?.summary.driver_breakdown.map((driver: ApiTypes.DriverImpact) => (
           <div key={driver.key}>
             <span>{driver.label + "\t"}</span>
             <strong>{formatMoney(driver.net_profit_uplift, 2)}</strong>
           </div>
-        ))}
+        ))} */} {/* old general list */}
+        <div style={{ width: "90%", maxWidth: 900, height: 320, margin: "0 auto" }}>
+          <ResponsiveContainer>
+            <BarChart
+              data={driverChartData}
+              margin={{ top: 20, right: 32, left: 64, bottom: 48 }}
+            >
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis
+                dataKey={"name"}
+                interval={0}
+                angle={-10}
+                textAnchor='end'
+                height={70}
+              />
+              <YAxis
+                width={90}
+                tickFormatter={(value) => formatMoney(Number(value))}
+              />
+              <Tooltip
+                formatter={(value) => formatMoney(Number(value ?? 0))}
+              />
+              <Bar dataKey="impact" name="Net profit impact">
+                {driverChartData.map((entry) => (
+                  <Cell
+                    key={entry.name}
+                    fill={entry.impact >= 0 ? "#16a34a" : "#dc2626"}
+                  />
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+
+        </div>
       </section>
-      )}
+    )}
 
-      {result && (
-    <section>
-      <h2>Cumulative Net Profit</h2>
-
-      <div style={{ width: "100%", height: 320, margin: "0 auto" }}>
-        <ResponsiveContainer>
-          <LineChart data={profitChartData} margin = {{ top: 20, right: 32, left: 92, bottom: 36 }}>
-            <CartesianGrid strokeDasharray="3 3" />
-            <XAxis
-              dataKey="month"
-              interval={monthTickInterval}
-              label={{ value: "Month", position: "insideBottom", offset: -16 }}
-            />
-            <YAxis width={90} tickFormatter={(value) => formatMoney(Number(value))} />
-            <Tooltip labelFormatter={(label) => `Month ${label}`} formatter={(value) => formatMoney(Number(value))} />
-            <Line
-              type="monotone"
-              dataKey="baseline"
-              stroke="#64748b"
-              strokeWidth={2}
-              dot={false}
-              name="Baseline"
-            />
-            <Line
-              type="monotone"
-              dataKey="experiment"
-              stroke="#2563eb"
-              strokeWidth={2}
-              dot={false}
-              name="Experiment"
-            />
-          </LineChart>
-        </ResponsiveContainer>
-      </div>
-    </section>
+    {result && (
+      <StandardLineChart
+        title='Cumulative Net Profit'
+        data={cumulativeProfitChartData}
+        lines={[
+          {key: "baseline", name: "Baseline", colour: "#64748b"},
+          {key: "experiment", name: "Experiment", colour: "#2563eb"},
+        ]}
+        yTickFormatter={formatMoney}
+        tooltipFormatter={formatMoney}
+        monthTickInterval={monthTickInterval}
+      />
     )}
     {result && (
-        <section>
-          <h2>Experiment User Base</h2>
-
-          <div style={{ width: "90%", maxWidth: 900, height: 320, margin: "0 auto" }}>
-            <ResponsiveContainer>
-              <LineChart data={userChartData} margin={{ top: 20, right: 32, left: 48, bottom: 36 }}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis
-                  dataKey="month"
-                  interval={monthTickInterval}
-                  label={{ value: "Month", position: "insideBottom", offset: -24 }}
-                />
-                <YAxis
-                  width={80}
-                  tickFormatter={(value) => formatNumber(Number(value))}
-                />
-                <Tooltip
-                  labelFormatter={(label) => `Month ${label}`}
-                  formatter={(value, name) => [
-                    formatNumber(Number(value)),
-                    name,
-                  ]}
-                />
-                <Line
-                  type="monotone"
-                  dataKey="active"
-                  stroke="#2563eb"
-                  strokeWidth={2}
-                  dot={false}
-                  name="Active users"
-                />
-
-                <Line
-                  type="monotone"
-                  dataKey="retained"
-                  stroke="#64748b"
-                  strokeWidth={2}
-                  dot={false}
-                  name="Retained users"
-                />
-
-                <Line
-                  type="monotone"
-                  dataKey="activated"
-                  stroke="#16a34a"
-                  strokeWidth={2}
-                  dot={false}
-                  name="Activated users"
-                />
-
-                <Line
-                  type="monotone"
-                  dataKey="paying"
-                  stroke="#f59e0b"
-                  strokeWidth={2}
-                  dot={false}
-                  name="Paying users"
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-        </section>
-      )}
-
+      <StandardLineChart
+        title='Monthly Net Profit'
+        data={netProfitChartData}
+        lines={[
+          {key: "baseline", name: "Baseline", colour: "#64748b"},
+          {key: "experiment", name: "Experiment", colour: "#2563eb"},
+        ]}
+        yTickFormatter={formatMoney}
+        tooltipFormatter={formatMoney}
+        monthTickInterval={monthTickInterval}
+      />
+    )}
+    {result && (
+      <StandardLineChart
+        title='Active User Base'
+        data={activeUsersChartData}
+        lines={[
+          {key: "active_baseline", name: "Active Baseline", colour: "#64748b"},
+          {key: "active_experiment", name: "Active Experiment", colour: "#2563eb"},
+          {key: "retained_baseline", name: "Retained Baseline", colour: "#bf0feb"},
+          {key: "retained_experiment", name: "Retained Experiment", colour: "#f14f93"},
+        ]}
+        yTickFormatter={formatNumber}
+        tooltipFormatter={formatNumber}
+        monthTickInterval={monthTickInterval}
+      />
+    )}
+    {result && (
+      <StandardLineChart
+        title='Paying User Base'
+        data={payingUsersChartData}
+        lines={[
+          {key: "baseline", name: "Baseline", colour: "#03c423"},
+          {key: "experiment", name: "Experiment", colour: "#7ee926"},
+        ]}
+        yTickFormatter={formatMoney}
+        tooltipFormatter={formatMoney}
+        monthTickInterval={monthTickInterval}
+      />
+    )}
     </main>
   )
 }
