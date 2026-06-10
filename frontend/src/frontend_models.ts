@@ -45,6 +45,12 @@ type SimulationResults = {
     monthly_results: [MonthSimulation]
 }
 
+export type DriverImpact = {
+    key: string
+    label: string
+    net_profit_uplift: number
+}
+
 export type ExperimentOutcome = {
     baseline: SimulationResults;
     experiment: SimulationResults;
@@ -53,6 +59,6 @@ export type ExperimentOutcome = {
         experiment_net: number;
         net_profit_uplift: number;
         baseline_overtake_month: number | null;
-        main_driver: string;
+        driver_breakdown: Array<DriverImpact>;
     }
 }

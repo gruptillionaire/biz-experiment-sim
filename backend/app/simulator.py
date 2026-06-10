@@ -39,29 +39,8 @@ def simulate_metrics(metrics: BaselineMetrics, months: int) -> SimulationResults
         monthly_results=monthResults
     )
 
-def find_main_driver(experiment: ExperimentChanges):
-    drivers = {
-        "acquisition": abs(experiment.new_users_per_month_delta),
-        "activation": abs(experiment.activation_rate_delta),
-        "retention": abs(experiment.monthly_retention_rate_delta),
-        "conversion": abs(experiment.conversion_rate_delta),
-        "revenue_per_user": abs(experiment.avg_revenue_per_paying_user_delta),
-        "acquisition_cost": abs(experiment.customer_acquisition_cost_delta)
-    }
-    return max(drivers, key=drivers.get)
-
-def find_break_even_month(baseline: list[MonthSimulation], experiment: list[MonthSimulation]):
-    for base_month, experiment_month in zip(baseline, experiment):
-        if base_month.cumulative_net_profit <= experiment_month.cumulative_net_profit:
-            return experiment_month.month
-
-
-def simulate_business_experiment(request: SimulationRequest):
-    baseline = request.baseline
-    experiment = request.experiment
-    months = request.months
-
-    simulation = BaselineMetrics(
+def apply_experiment(baseline: BaselineMetrics, experiment: ExperimentChanges):
+    return BaselineMetrics(
         starting_users=baseline.starting_users,
         new_users_per_month=max(0, baseline.new_users_per_month * (1 + experiment.new_users_per_month_delta)),
         activation_rate=clamp(baseline.activation_rate * (1 + experiment.activation_rate_delta)),
@@ -73,8 +52,48 @@ def simulate_business_experiment(request: SimulationRequest):
         fixed_monthly_cost=max(0, baseline.fixed_monthly_cost * (1 + experiment.fixed_monthly_cost_delta)),
     )
 
+def get_driver_breakdown(baseline_metrics: BaselineMetrics, experiment: ExperimentChanges, baseline_net: int, months: int):
+    impacts = []
+    for field, label in {
+        "Acquisition": "new_users_per_month_delta",
+        "Activation": "activation_rate_delta",
+        "Retention": "monthly_retention_rate_delta",
+        "Conversion": "conversion_rate_delta",
+        "Avg. Revenue per User": "avg_revenue_per_paying_user_delta",
+        "Acquisition Cost": "customer_acquisition_cost_delta"
+    }.items():
+        value = getattr(experiment, label)
+        if value == 0:
+            continue
+        isolated_experiment = ExperimentChanges()   ## empty experiment
+        setattr(isolated_experiment, label, value)  ## and set only the one value
+        isolated_metrics = apply_experiment(baseline_metrics, isolated_experiment)
+        isolated_results = simulate_metrics(isolated_metrics, months)
+        impacts.append(
+            DriverImpact(
+                key = field,
+                label = field,
+                net_profit_uplift = isolated_results.net_profit - baseline_net
+            )
+        )
+    return sorted(impacts, key=lambda impact: abs(impact.net_profit_uplift), reverse=True)
+
+def find_break_even_month(baseline: list[MonthSimulation], experiment: list[MonthSimulation]):
+    for base_month, experiment_month in zip(baseline, experiment):
+        if base_month.cumulative_net_profit <= experiment_month.cumulative_net_profit:
+            return experiment_month.month
+
+def simulate_business_experiment(request: SimulationRequest):
+    baseline = request.baseline
+    experiment = request.experiment
+    months = request.months
+
+    simulation = apply_experiment(baseline, experiment)
+
     baseline_results = simulate_metrics(baseline, months)
     experiment_results = simulate_metrics(simulation, months)
+
+    driver_breakdown = get_driver_breakdown(baseline, experiment, baseline_results.net_profit, months)
 
     ## set to pydantic method
     return ExperimentOutcome(
@@ -85,6 +104,6 @@ def simulate_business_experiment(request: SimulationRequest):
             experiment_net = experiment_results.net_profit,
             net_profit_uplift = experiment_results.net_profit-baseline_results.net_profit,
             baseline_overtake_month = find_break_even_month(baseline_results.monthly_results, experiment_results.monthly_results),
-            main_driver = find_main_driver(experiment)
+            driver_breakdown = driver_breakdown
         )
     )

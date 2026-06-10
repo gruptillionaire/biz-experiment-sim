@@ -69,11 +69,11 @@ const experimentFields: Array<{
 
 function App() {
   const [currencyType, setCurrencyType] = useState<"GBP" | "USD">("GBP");
-  function formatMoney(value: number) {
+  function formatMoney(value: number, decPlaces?: number) {
     return new Intl.NumberFormat(currencyType == "GBP" ? "en-GB" : "en-US", {
       style: "currency",
       currency: currencyType,
-      maximumFractionDigits: 0,
+      maximumFractionDigits: decPlaces ?? 0,
     }).format(value);
   }
   function formatNumber(value: number) {
@@ -124,7 +124,7 @@ function App() {
     const data: ApiTypes.ExperimentOutcome = await response.json();
     setResult(data);
   }
-  const chartData =
+  const profitChartData =
       result?.baseline.monthly_results.map((baselineMonth, index) => {
         const experimentMonth = result.experiment.monthly_results[index];
 
@@ -134,6 +134,16 @@ function App() {
           experiment: experimentMonth.cumulative_net_profit,
         };
       }) ?? [];
+  const userChartData =
+    result?.experiment.monthly_results.map((month) => ({
+      month: month.month,
+      active: month.active_users,
+      retained: month.retained_users,
+      activated: month.activated_users,
+      paying: month.paying_users,
+    })) ?? [];
+  const monthTickInterval = profitChartData.length > 24 ? Math.max(0, Math.floor(profitChartData.length/12)) : 0
+
   return (
     <main>
       <h1>Business Experiment Simulator</h1>
@@ -197,7 +207,15 @@ function App() {
         Run Simulation
       </button>
       {result && (
-        <pre>{JSON.stringify(result.summary, null, 2)}</pre>
+        <section>
+        <h2>Driver Breakdown</h2>
+        {result?.summary.driver_breakdown.map((driver: ApiTypes.DriverImpact) => (
+          <div key={driver.key}>
+            <span>{driver.label + "\t"}</span>
+            <strong>{formatMoney(driver.net_profit_uplift, 2)}</strong>
+          </div>
+        ))}
+      </section>
       )}
 
       {result && (
@@ -206,11 +224,11 @@ function App() {
 
       <div style={{ width: "100%", height: 320, margin: "0 auto" }}>
         <ResponsiveContainer>
-          <LineChart data={chartData} margin = {{ top: 20, right: 32, left: 92, bottom: 36 }}>
+          <LineChart data={profitChartData} margin = {{ top: 20, right: 32, left: 92, bottom: 36 }}>
             <CartesianGrid strokeDasharray="3 3" />
             <XAxis
               dataKey="month"
-              interval={chartData.length > 24 ? Math.max(0, Math.floor(chartData.length/12)) : 0}
+              interval={monthTickInterval}
               label={{ value: "Month", position: "insideBottom", offset: -16 }}
             />
             <YAxis width={90} tickFormatter={(value) => formatMoney(Number(value))} />
@@ -235,8 +253,71 @@ function App() {
         </ResponsiveContainer>
       </div>
     </section>
-  )}
+    )}
+    {result && (
+        <section>
+          <h2>Experiment User Base</h2>
 
+          <div style={{ width: "90%", maxWidth: 900, height: 320, margin: "0 auto" }}>
+            <ResponsiveContainer>
+              <LineChart data={userChartData} margin={{ top: 20, right: 32, left: 48, bottom: 36 }}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis
+                  dataKey="month"
+                  interval={monthTickInterval}
+                  label={{ value: "Month", position: "insideBottom", offset: -24 }}
+                />
+                <YAxis
+                  width={80}
+                  tickFormatter={(value) => formatNumber(Number(value))}
+                />
+                <Tooltip
+                  labelFormatter={(label) => `Month ${label}`}
+                  formatter={(value, name) => [
+                    formatNumber(Number(value)),
+                    name,
+                  ]}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="active"
+                  stroke="#2563eb"
+                  strokeWidth={2}
+                  dot={false}
+                  name="Active users"
+                />
+
+                <Line
+                  type="monotone"
+                  dataKey="retained"
+                  stroke="#64748b"
+                  strokeWidth={2}
+                  dot={false}
+                  name="Retained users"
+                />
+
+                <Line
+                  type="monotone"
+                  dataKey="activated"
+                  stroke="#16a34a"
+                  strokeWidth={2}
+                  dot={false}
+                  name="Activated users"
+                />
+
+                <Line
+                  type="monotone"
+                  dataKey="paying"
+                  stroke="#f59e0b"
+                  strokeWidth={2}
+                  dot={false}
+                  name="Paying users"
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        </section>
+      )}
 
     </main>
   )

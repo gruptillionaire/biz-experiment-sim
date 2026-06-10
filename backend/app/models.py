@@ -42,12 +42,18 @@ class SimulationResults(BaseModel):
     total_active_users: float = Field(ge=0)
     monthly_results: list[MonthSimulation]
 
+class DriverImpact(BaseModel):
+    key: str
+    label: str
+    net_profit_uplift: float
+
 class ExperimentSummary(BaseModel):
     baseline_net: float = 0
     experiment_net: float = 0
     net_profit_uplift: float = 0
     baseline_overtake_month: int | None
-    main_driver: str
+    driver_breakdown: list[DriverImpact]
+
 class ExperimentOutcome(BaseModel):
     baseline: SimulationResults
     experiment: SimulationResults
