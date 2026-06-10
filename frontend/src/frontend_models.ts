@@ -1,5 +1,5 @@
 // yes, the exact same as models but not pydantic. sub-optimal.
-type BaselineMetrics = {
+export type BaselineMetrics = {
     starting_users: number;
     new_users_per_month: number;
     activation_rate: number;
@@ -11,7 +11,7 @@ type BaselineMetrics = {
     fixed_monthly_cost: number;
 }
 
-type ExperimentChanges = {
+export type ExperimentChanges = {
     new_users_per_month_delta: number;
     activation_rate_delta: number;
     monthly_retention_rate_delta: number;
@@ -31,6 +31,7 @@ export type SimulationRequest = {
 type MonthSimulation = {
     month: number;
     activated_users: number;
+    active_users: number;
     paying_users: number;
     retained_users: number;
     monthly_revenue: number;

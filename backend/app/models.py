@@ -28,8 +28,9 @@ class SimulationRequest(BaseModel):
     months: int = Field(ge=1, le=72)
 
 class MonthSimulation(BaseModel):
-    month: int = Field(ge=0, le=12)
+    month: int = Field(ge=0, le=72)
     activated_users: float = Field(ge=0)
+    active_users: float = Field(ge=0)
     paying_users: float = Field(ge=0)
     retained_users: float = Field(ge=0)
     monthly_revenue: float = Field(ge=0)

@@ -1,4 +1,13 @@
 import { useState } from 'react'
+ import {
+    LineChart,
+    Line,
+    XAxis,
+    YAxis,
+    CartesianGrid,
+    Tooltip,
+    ResponsiveContainer,
+  } from "recharts";
 import * as ApiTypes from './frontend_models.ts'
 import './App.css'
 
@@ -27,7 +36,80 @@ const defaultRequest: ApiTypes.SimulationRequest = {
     months: 12,
 }
 
+const baselineFields: Array<{
+  key: keyof ApiTypes.BaselineMetrics;
+  label: string;
+  step?: number;
+}> = [
+  { key: "starting_users", label: "Starting users" },
+  { key: "new_users_per_month", label: "New users / month" },
+  { key: "activation_rate", label: "Activation rate", step: 0.01 },
+  { key: "monthly_retention_rate", label: "Monthly retention", step: 0.01 },
+  { key: "conversion_rate", label: "Conversion rate", step: 0.01 },
+  { key: "avg_revenue_per_paying_user", label: "ARPPU", step: 0.01 },
+  { key: "customer_acquisition_cost", label: "CAC", step: 0.01 },
+  { key: "gross_margin_rate", label: "Gross margin", step: 0.01 },
+  { key: "fixed_monthly_cost", label: "Fixed monthly cost", step: 0.01 },
+];
+const experimentFields: Array<{
+  key: keyof ApiTypes.ExperimentChanges;
+  label: string;
+  step?: number;
+}> = [
+  { key: "new_users_per_month_delta", label: "New users delta", step: 0.01 },
+  { key: "activation_rate_delta", label: "Activation delta", step: 0.01 },
+  { key: "monthly_retention_rate_delta", label: "Retention delta", step: 0.01 },
+  { key: "conversion_rate_delta", label: "Conversion delta", step: 0.01 },
+  { key: "avg_revenue_per_paying_user_delta", label: "ARPPU delta", step: 0.01 },
+  { key: "customer_acquisition_cost_delta", label: "CAC delta", step: 0.01 },
+  { key: "gross_margin_rate_delta", label: "Gross margin delta", step: 0.01 },
+  { key: "fixed_monthly_cost_delta", label: "Fixed cost delta", step: 0.01 },
+];
+
+
 function App() {
+  const [currencyType, setCurrencyType] = useState<"GBP" | "USD">("GBP");
+  function formatMoney(value: number) {
+    return new Intl.NumberFormat(currencyType == "GBP" ? "en-GB" : "en-US", {
+      style: "currency",
+      currency: currencyType,
+      maximumFractionDigits: 0,
+    }).format(value);
+  }
+  function formatNumber(value: number) {
+    return new Intl.NumberFormat(currencyType == "GBP" ? "en-GB" : "en-US", {
+      maximumFractionDigits: 0,
+    }).format(value);
+  }
+  
+  function formatPercent(value: number) {
+    return `${(value * 100).toFixed(1)}%`;
+  }
+  const [request, setRequest] = useState<ApiTypes.SimulationRequest>(defaultRequest)
+  function updateBaselineField(field: keyof ApiTypes.BaselineMetrics, value: number) {
+    setRequest((current) => ({
+      ...current,
+      baseline: {
+        ...current.baseline,  
+        [field]: value,
+      },
+    }))
+  }
+  function updateExperimentField(field: keyof ApiTypes.ExperimentChanges, value: number) {
+    setRequest((current) => ({
+      ...current,
+      experiment: {
+        ...current.experiment,
+        [field]: value,
+      },
+    }))
+  }
+  function updateMonths(value: number) {
+    setRequest((current) => ({
+      ...current,
+      months: value
+    }))
+  }
   const [result, setResult] = useState<ApiTypes.ExperimentOutcome | null>(null)
   async function runSimulation() {
     console.log("running")
@@ -36,16 +118,80 @@ function App() {
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify(defaultRequest),
+      body: JSON.stringify(request),
     });
 
     const data: ApiTypes.ExperimentOutcome = await response.json();
     setResult(data);
   }
+  const chartData =
+      result?.baseline.monthly_results.map((baselineMonth, index) => {
+        const experimentMonth = result.experiment.monthly_results[index];
 
+        return {
+          month: baselineMonth.month,
+          baseline: baselineMonth.cumulative_net_profit,
+          experiment: experimentMonth.cumulative_net_profit,
+        };
+      }) ?? [];
   return (
     <main>
       <h1>Business Experiment Simulator</h1>
+
+      <div>
+        <label>
+          Currency Type:{"\t"}
+          <select
+            value={currencyType}
+            onChange={(event) => setCurrencyType(event.target.value as "GBP" | "USD")}  // asserts type
+          >
+            <option value="GBP">GBP (£)</option>
+            <option value="USD">USD ($)</option>
+          </select>
+        </label>
+        <h2>Baseline</h2>
+        {baselineFields.map((field) => (
+          <label key={field.key}>
+            {field.label}
+            <input
+              type="number"
+              step={field.step ?? 1}
+              value={request.baseline[field.key]}
+              onChange={(event) => 
+                updateBaselineField(field.key, Number(event.target.value))
+              }
+            />
+          </label>
+        ))}
+      </div>
+      <div>
+        <h2>Experiment</h2>
+        {experimentFields.map((field) => (
+          <label key={field.key}>
+            {field.label}
+            <input
+              type="number"
+              step={field.step ?? 1}
+              value={request.experiment[field.key]}
+              onChange={(event) => 
+                updateExperimentField(field.key, Number(event.target.value))
+              }
+            />
+          </label>
+        ))}
+      </div>
+      <div>
+        <h2>Months</h2>
+        <input
+          type="number"
+          step={1}
+          value={request.months}
+          onChange={(event) =>
+            updateMonths(Math.max(1, Math.min(72, Number(event.target.value))))
+          }
+        />
+      </div>
+
 
       <button onClick={runSimulation}>
         Run Simulation
@@ -53,6 +199,45 @@ function App() {
       {result && (
         <pre>{JSON.stringify(result.summary, null, 2)}</pre>
       )}
+
+      {result && (
+    <section>
+      <h2>Cumulative Net Profit</h2>
+
+      <div style={{ width: "100%", height: 320, margin: "0 auto" }}>
+        <ResponsiveContainer>
+          <LineChart data={chartData} margin = {{ top: 20, right: 32, left: 92, bottom: 36 }}>
+            <CartesianGrid strokeDasharray="3 3" />
+            <XAxis
+              dataKey="month"
+              interval={chartData.length > 24 ? Math.max(0, Math.floor(chartData.length/12)) : 0}
+              label={{ value: "Month", position: "insideBottom", offset: -16 }}
+            />
+            <YAxis width={90} tickFormatter={(value) => formatMoney(Number(value))} />
+            <Tooltip labelFormatter={(label) => `Month ${label}`} formatter={(value) => formatMoney(Number(value))} />
+            <Line
+              type="monotone"
+              dataKey="baseline"
+              stroke="#64748b"
+              strokeWidth={2}
+              dot={false}
+              name="Baseline"
+            />
+            <Line
+              type="monotone"
+              dataKey="experiment"
+              stroke="#2563eb"
+              strokeWidth={2}
+              dot={false}
+              name="Experiment"
+            />
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
+    </section>
+  )}
+
+
     </main>
   )
 }

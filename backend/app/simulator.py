@@ -26,6 +26,7 @@ def simulate_metrics(metrics: BaselineMetrics, months: int) -> SimulationResults
         monthResults.append(MonthSimulation(
             month=month,
             activated_users=activated_users,
+            active_users=active_users,
             paying_users=paying_users,
             retained_users=retained_users,
             monthly_revenue=gross_revenue,
