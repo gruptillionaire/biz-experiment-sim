@@ -40,33 +40,62 @@ const defaultRequest: ApiTypes.SimulationRequest = {
 }
 
 const baselineFields: Array<{
-  key: keyof ApiTypes.BaselineMetrics;
-  label: string;
-  step?: number;
+  title: string;
+  fields: Array<{
+    key: keyof ApiTypes.BaselineMetrics;
+    label: string;
+    step?: number;
+    format?: "percent" | "money";
+  }>
 }> = [
-  { key: "starting_users", label: "Starting users" },
-  { key: "new_users_per_month", label: "New users / month" },
-  { key: "activation_rate", label: "Activation rate", step: 0.01 },
-  { key: "monthly_retention_rate", label: "Monthly retention", step: 0.01 },
-  { key: "conversion_rate", label: "Conversion rate", step: 0.01 },
-  { key: "avg_revenue_per_paying_user", label: "ARPPU", step: 0.01 },
-  { key: "customer_acquisition_cost", label: "CAC", step: 0.01 },
-  { key: "gross_margin_rate", label: "Gross margin", step: 0.01 },
-  { key: "fixed_monthly_cost", label: "Fixed monthly cost", step: 0.01 },
+  {
+    title: "Userbase",
+    fields: [
+      { key: "starting_users", label: "Starting users" },
+      { key: "new_users_per_month", label: "New users / month" },
+      { key: "activation_rate", label: "Activation rate", step: 1, format: "percent" },
+      { key: "monthly_retention_rate", label: "Monthly retention", step: 1, format: "percent" },
+    ]
+  },
+  {
+    title: "Monetisation",
+    fields: [
+      { key: "conversion_rate", label: "Conversion rate", step: 1, format: "percent" },
+      { key: "avg_revenue_per_paying_user", label: "ARPPU", step: 0.01, format: "money" },
+      { key: "customer_acquisition_cost", label: "CAC", step: 0.01, format: "money" },
+      { key: "gross_margin_rate", label: "Gross margin", step: 0.01, format: "money" },
+      { key: "fixed_monthly_cost", label: "Fixed monthly cost", step: 0.01, format: "money" },
+    ]
+  }
 ];
 const experimentFields: Array<{
-  key: keyof ApiTypes.ExperimentChanges;
-  label: string;
-  step?: number;
+  title: string;
+  fields: Array<{
+    key: keyof ApiTypes.ExperimentChanges;
+    label: string;
+    step?: number;
+    format?: "percent" | "money";
+    info?: string;
+  }>
 }> = [
-  { key: "new_users_per_month_delta", label: "New users delta", step: 0.01 },
-  { key: "activation_rate_delta", label: "Activation delta", step: 0.01 },
-  { key: "monthly_retention_rate_delta", label: "Retention delta", step: 0.01 },
-  { key: "conversion_rate_delta", label: "Conversion delta", step: 0.01 },
-  { key: "avg_revenue_per_paying_user_delta", label: "ARPPU delta", step: 0.01 },
-  { key: "customer_acquisition_cost_delta", label: "CAC delta", step: 0.01 },
-  { key: "gross_margin_rate_delta", label: "Gross margin delta", step: 0.01 },
-  { key: "fixed_monthly_cost_delta", label: "Fixed cost delta", step: 0.01 },
+  {
+    title: "Userbase",
+    fields: [
+      { key: "new_users_per_month_delta", label: "New users delta", step: 1, format: "percent" },
+      { key: "activation_rate_delta", label: "Activation delta", step: 1, format: "percent" },
+      { key: "monthly_retention_rate_delta", label: "Retention point lift", step: 1, format: "percent", info: "Additive to base, not multiplicative! 10% base -> 3% delta = 13%, not 10.3!" },
+    ],
+  },
+  {
+    title: "Monetisation",
+    fields: [
+      { key: "conversion_rate_delta", label: "Conversion point life", step: 1, format: "percent", info: "Additive to base, not multiplicative! 10% base -> 3% delta = 13%, not 10.3!" },
+      { key: "avg_revenue_per_paying_user_delta", label: "ARPPU delta", step: 1, format: "percent" },
+      { key: "customer_acquisition_cost_delta", label: "CAC delta", step: 1, format: "percent" },
+      { key: "gross_margin_rate_delta", label: "Gross margin point lift", step: 1, format: "percent", info: "Additive to base, not multiplicative! 10% base -> 3% delta = 13%, not 10.3!" },
+      { key: "fixed_monthly_cost_delta", label: "Fixed cost delta", step: 1, format: "percent" },
+    ]
+  }
 ];
 
 type LineConfig = {
@@ -127,6 +156,22 @@ function StandardLineChart({title, data, lines, yTickFormatter, tooltipFormatter
     </section>
   );
 }
+function InfoTip({ text }: { text: string }) {
+    return (
+      <span className="info-tip" tabIndex={0}>
+        i
+        <span className="info-tip-text">{text}</span>
+      </span>
+    );
+  }
+// function ResultsDashboard({ result, formatMoney, formatNumber }) {
+//   if (!result) return null;
+//   return (
+//     <>
+      
+//     </>
+//   )
+// }
 
 
 function App() {
@@ -236,50 +281,71 @@ function App() {
   const monthTickInterval = cumulativeProfitChartData.length > 24 ? Math.max(0, Math.floor(cumulativeProfitChartData.length/12)) : 0
 
   return (
-    <main>
+    <main >
       <h1>Business Experiment Simulator</h1>
+      <label style={{display: "flex", justifyContent: "flex-end", padding: "10px", marginRight: "30px"}}>
+        Currency Type: <div style={{margin:"5px"}}/> {/* \t not working here... hacky fix */}
+        <select
+          value={currencyType}
+          onChange={(event) => setCurrencyType(event.target.value as "GBP" | "USD")}  // asserts type
+        >
+          <option value="GBP">GBP (£)</option>
+          <option value="USD">USD ($)</option>
+        </select>
+      </label>
 
-      <div>
-        <label>
-          Currency Type:{"\t"}
-          <select
-            value={currencyType}
-            onChange={(event) => setCurrencyType(event.target.value as "GBP" | "USD")}  // asserts type
-          >
-            <option value="GBP">GBP (£)</option>
-            <option value="USD">USD ($)</option>
-          </select>
-        </label>
-        <h2>Baseline</h2>
-        {baselineFields.map((field) => (
-          <label key={field.key}>
-            {field.label}
-            <input
-              type="number"
-              step={field.step ?? 1}
-              value={request.baseline[field.key]}
-              onChange={(event) => 
-                updateBaselineField(field.key, Number(event.target.value))
-              }
-            />
-          </label>
-        ))}
-      </div>
-      <div>
-        <h2>Experiment</h2>
-        {experimentFields.map((field) => (
-          <label key={field.key}>
-            {field.label}
-            <input
-              type="number"
-              step={field.step ?? 1}
-              value={request.experiment[field.key]}
-              onChange={(event) => 
-                updateExperimentField(field.key, Number(event.target.value))
-              }
-            />
-          </label>
-        ))}
+      <div className='input-panel'>
+        <div className='input-column'>
+          <h2>Baseline</h2>
+          {baselineFields.map((section) => (
+            <section key={section.title}>
+            <h3>{section.title}</h3>
+            {section.fields.map((field) => (
+              <label key={field.key}>
+                {field.label + ":\t" + (field.format === "money" ? (currencyType == "GBP" ? "£" : "$") + "\t" : "")}
+                <input
+                  type="number"
+                  step={field.step ?? 1}
+                  value={field.format === "percent" ? Math.round(request.baseline[field.key] * 100) : request.baseline[field.key]}
+                  onChange={(event) => {
+                    const inputValue = Number(event.target.value)
+
+                    updateBaselineField(field.key,
+                      field.format === "percent" ? inputValue / 100 : inputValue
+                  )}}
+                />
+                {"\t"+(field.format === "percent" ? "%" : "")}
+              </label>
+            ))}
+            </section>
+          ))}
+        </div>  {/*really should just be made into a custom component used for baseline and experiment*/}
+        <div className='input-column'>
+          <h2>Experiment</h2>
+          {experimentFields.map((section) => (
+            <section key={section.title}>
+            <h3>{section.title}</h3>
+            {section.fields.map((field) => (
+              <label key={field.key}>
+                {field.label + ":\t" + (field.format === "money" ? (currencyType == "GBP" ? "£" : "$") + "\t" : field.format === "percent" ? "+" : "")}
+                <input
+                  type="number"
+                  step={field.step ?? 1}
+                  value={field.format === "percent" ? Math.round(request.experiment[field.key] * 100) : request.experiment[field.key]}
+                  onChange={(event) => {
+                  const inputValue = Number(event.target.value)
+
+                  updateExperimentField(field.key,
+                    field.format === "percent" ? inputValue / 100 : inputValue
+                )}}
+                />
+                {"\t"+(field.format === "percent" ? "%" : "")}
+                {field.info && <InfoTip text={field.info} />}
+              </label>
+            ))}
+          </section>
+          ))}
+        </div>
       </div>
       <div>
         <h2>Months</h2>
@@ -292,9 +358,7 @@ function App() {
           }
         />
       </div>
-
-
-      <button onClick={runSimulation}>
+      <button style={{marginBottom: "50px"}} onClick={runSimulation}>
         Run Simulation
       </button>
     {result && (
