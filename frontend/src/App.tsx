@@ -164,15 +164,164 @@ function InfoTip({ text }: { text: string }) {
       </span>
     );
   }
-// function ResultsDashboard({ result, formatMoney, formatNumber }) {
-//   if (!result) return null;
-//   return (
-//     <>
-      
-//     </>
-//   )
-// }
 
+function ResultsDashboard({ result, formatMoney, formatNumber }: { result: ApiTypes.ExperimentOutcome | null, formatMoney: (value: number, decPlaces?: number) => string, formatNumber: (value: number) => string }) {
+  if (!result) {
+    return null;
+  }
+
+  const cumulativeProfitChartData =
+      result?.baseline.monthly_results.map((baselineMonth, index) => {
+        const experimentMonth = result.experiment.monthly_results[index];
+
+        return {
+          month: baselineMonth.month,
+          baseline: baselineMonth.cumulative_net_profit,
+          experiment: experimentMonth.cumulative_net_profit,
+        };
+      }) ?? [];
+  const netProfitChartData =
+      result?.baseline.monthly_results.map((baselineMonth, index) => {
+        const experimentMonth = result.experiment.monthly_results[index];
+
+        return {
+          month: baselineMonth.month,
+          baseline: baselineMonth.monthly_net,
+          experiment: experimentMonth.monthly_net
+        }
+      }) ?? [];
+  const activeUsersChartData =
+    result?.baseline.monthly_results.map((baselineMonth, index) => {
+      const experimentMonth = result.experiment.monthly_results[index];
+
+      return {
+          month: baselineMonth.month,
+          active_baseline: baselineMonth.active_users,
+          active_experiment: experimentMonth.active_users,
+          retained_baseline: baselineMonth.retained_users,
+          retained_experiment: experimentMonth.retained_users
+      }
+    }) ?? [];
+  const payingUsersChartData =
+      result?.baseline.monthly_results.map((baselineMonth, index) => {
+        const experimentMonth = result.experiment.monthly_results[index];
+
+        return {
+          month: baselineMonth.month,
+          baseline: baselineMonth.paying_users,
+          experiment: experimentMonth.paying_users
+        }
+      }) ?? [];
+  const driverChartData =
+    result?.summary.driver_breakdown.map((driver) => ({
+      name: driver.label,
+      impact: driver.net_profit_uplift,
+    })) ?? [];
+  const monthTickInterval = cumulativeProfitChartData.length > 24 ? Math.max(0, Math.floor(cumulativeProfitChartData.length/12)) : 0
+
+  return (
+    <>
+      <section>
+        <h2>Driver Breakdown</h2>
+        <div style={{ width: "90%", maxWidth: 900, height: 320, margin: "0 auto" }}>
+          <ResponsiveContainer>
+            <BarChart
+              data={driverChartData}
+              margin={{ top: 20, right: 32, left: 64, bottom: 48 }}
+            >
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis
+                dataKey={"name"}
+                interval={0}
+                angle={-10}
+                textAnchor='end'
+                height={70}
+              />
+              <YAxis
+                width={90}
+                tickFormatter={(value) => formatMoney(Number(value))}
+              />
+              <Tooltip
+                formatter={(value) => formatMoney(Number(value ?? 0))}
+              />
+              <Bar dataKey="impact" name="Net profit impact">
+                {driverChartData.map((entry) => (
+                  <Cell
+                    key={entry.name}
+                    fill={entry.impact >= 0 ? "#16a34a" : "#dc2626"}
+                  />
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </section>
+      <StandardLineChart
+        title='Cumulative Net Profit'
+        data={cumulativeProfitChartData}
+        lines={[
+          {key: "baseline", name: "Baseline", colour: "#64748b"},
+          {key: "experiment", name: "Experiment", colour: "#2563eb"},
+        ]}
+        yTickFormatter={formatMoney}
+        tooltipFormatter={formatMoney}
+        monthTickInterval={monthTickInterval}
+      />
+      <StandardLineChart
+        title='Monthly Net Profit'
+        data={netProfitChartData}
+        lines={[
+          {key: "baseline", name: "Baseline", colour: "#64748b"},
+          {key: "experiment", name: "Experiment", colour: "#2563eb"},
+        ]}
+        yTickFormatter={formatMoney}
+        tooltipFormatter={formatMoney}
+        monthTickInterval={monthTickInterval}
+      />
+      <StandardLineChart
+        title='Active User Base'
+        data={activeUsersChartData}
+        lines={[
+          {key: "active_baseline", name: "Active Baseline", colour: "#64748b"},
+          {key: "active_experiment", name: "Active Experiment", colour: "#2563eb"},
+          {key: "retained_baseline", name: "Retained Baseline", colour: "#bf0feb"},
+          {key: "retained_experiment", name: "Retained Experiment", colour: "#f14f93"},
+        ]}
+        yTickFormatter={formatNumber}
+        tooltipFormatter={formatNumber}
+        monthTickInterval={monthTickInterval}
+      />
+      <StandardLineChart
+        title='Paying User Base'
+        data={payingUsersChartData}
+        lines={[
+          {key: "baseline", name: "Baseline", colour: "#03c423"},
+          {key: "experiment", name: "Experiment", colour: "#7ee926"},
+        ]}
+        yTickFormatter={formatMoney}
+        tooltipFormatter={formatMoney}
+        monthTickInterval={monthTickInterval}
+      />
+    </>
+  );
+}
+function NumberInput({ value, onCommit, step = 1 }: { value: number, onCommit: (value: number) => void, step?: number }) {
+    const [draft, setDraft] = useState(String(value));
+    return (
+      <input
+        type="number"
+        step={step}
+        value={draft}
+        onChange={(event) => setDraft(event.target.value)}
+        onBlur={() => onCommit(Number(draft))}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") {
+            onCommit(Number(draft));
+          }
+        }}
+      />
+    );
+  }
 
 function App() {
   const [currencyType, setCurrencyType] = useState<"GBP" | "USD">("GBP");
@@ -231,54 +380,6 @@ function App() {
     const data: ApiTypes.ExperimentOutcome = await response.json();
     setResult(data);
   }
-  const cumulativeProfitChartData =
-      result?.baseline.monthly_results.map((baselineMonth, index) => {
-        const experimentMonth = result.experiment.monthly_results[index];
-
-        return {
-          month: baselineMonth.month,
-          baseline: baselineMonth.cumulative_net_profit,
-          experiment: experimentMonth.cumulative_net_profit,
-        };
-      }) ?? [];
-  const netProfitChartData =
-      result?.baseline.monthly_results.map((baselineMonth, index) => {
-        const experimentMonth = result.experiment.monthly_results[index];
-
-        return {
-          month: baselineMonth.month,
-          baseline: baselineMonth.monthly_net,
-          experiment: experimentMonth.monthly_net
-        }
-      }) ?? [];
-  const activeUsersChartData =
-    result?.baseline.monthly_results.map((baselineMonth, index) => {
-      const experimentMonth = result.experiment.monthly_results[index];
-
-      return {
-          month: baselineMonth.month,
-          active_baseline: baselineMonth.active_users,
-          active_experiment: experimentMonth.active_users,
-          retained_baseline: baselineMonth.retained_users,
-          retained_experiment: experimentMonth.retained_users
-      }
-    }) ?? [];
-  const payingUsersChartData =
-      result?.baseline.monthly_results.map((baselineMonth, index) => {
-        const experimentMonth = result.experiment.monthly_results[index];
-
-        return {
-          month: baselineMonth.month,
-          baseline: baselineMonth.paying_users,
-          experiment: experimentMonth.paying_users
-        }
-      }) ?? [];
-  const driverChartData =
-    result?.summary.driver_breakdown.map((driver) => ({
-      name: driver.label,
-      impact: driver.net_profit_uplift,
-    })) ?? [];
-  const monthTickInterval = cumulativeProfitChartData.length > 24 ? Math.max(0, Math.floor(cumulativeProfitChartData.length/12)) : 0
 
   return (
     <main >
@@ -303,15 +404,12 @@ function App() {
             {section.fields.map((field) => (
               <label key={field.key}>
                 {field.label + ":\t" + (field.format === "money" ? (currencyType == "GBP" ? "£" : "$") + "\t" : "")}
-                <input
-                  type="number"
+                <NumberInput
                   step={field.step ?? 1}
                   value={field.format === "percent" ? Math.round(request.baseline[field.key] * 100) : request.baseline[field.key]}
-                  onChange={(event) => {
-                    const inputValue = Number(event.target.value)
-
+                  onCommit={(value) => {
                     updateBaselineField(field.key,
-                      field.format === "percent" ? inputValue / 100 : inputValue
+                      field.format === "percent" ? value / 100 : value
                   )}}
                 />
                 {"\t"+(field.format === "percent" ? "%" : "")}
@@ -328,15 +426,12 @@ function App() {
             {section.fields.map((field) => (
               <label key={field.key}>
                 {field.label + ":\t" + (field.format === "money" ? (currencyType == "GBP" ? "£" : "$") + "\t" : field.format === "percent" ? "+" : "")}
-                <input
-                  type="number"
+                <NumberInput
                   step={field.step ?? 1}
                   value={field.format === "percent" ? Math.round(request.experiment[field.key] * 100) : request.experiment[field.key]}
-                  onChange={(event) => {
-                  const inputValue = Number(event.target.value)
-
+                  onCommit={(value) => {
                   updateExperimentField(field.key,
-                    field.format === "percent" ? inputValue / 100 : inputValue
+                    field.format === "percent" ? value / 100 : value
                 )}}
                 />
                 {"\t"+(field.format === "percent" ? "%" : "")}
@@ -361,103 +456,12 @@ function App() {
       <button style={{marginBottom: "50px"}} onClick={runSimulation}>
         Run Simulation
       </button>
-    {result && (
-        <section>
-        <h2>Driver Breakdown</h2>
-        {/* {result?.summary.driver_breakdown.map((driver: ApiTypes.DriverImpact) => (
-          <div key={driver.key}>
-            <span>{driver.label + "\t"}</span>
-            <strong>{formatMoney(driver.net_profit_uplift, 2)}</strong>
-          </div>
-        ))} */} {/* old general list */}
-        <div style={{ width: "90%", maxWidth: 900, height: 320, margin: "0 auto" }}>
-          <ResponsiveContainer>
-            <BarChart
-              data={driverChartData}
-              margin={{ top: 20, right: 32, left: 64, bottom: 48 }}
-            >
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis
-                dataKey={"name"}
-                interval={0}
-                angle={-10}
-                textAnchor='end'
-                height={70}
-              />
-              <YAxis
-                width={90}
-                tickFormatter={(value) => formatMoney(Number(value))}
-              />
-              <Tooltip
-                formatter={(value) => formatMoney(Number(value ?? 0))}
-              />
-              <Bar dataKey="impact" name="Net profit impact">
-                {driverChartData.map((entry) => (
-                  <Cell
-                    key={entry.name}
-                    fill={entry.impact >= 0 ? "#16a34a" : "#dc2626"}
-                  />
-                ))}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
-
-        </div>
-      </section>
-    )}
 
     {result && (
-      <StandardLineChart
-        title='Cumulative Net Profit'
-        data={cumulativeProfitChartData}
-        lines={[
-          {key: "baseline", name: "Baseline", colour: "#64748b"},
-          {key: "experiment", name: "Experiment", colour: "#2563eb"},
-        ]}
-        yTickFormatter={formatMoney}
-        tooltipFormatter={formatMoney}
-        monthTickInterval={monthTickInterval}
-      />
-    )}
-    {result && (
-      <StandardLineChart
-        title='Monthly Net Profit'
-        data={netProfitChartData}
-        lines={[
-          {key: "baseline", name: "Baseline", colour: "#64748b"},
-          {key: "experiment", name: "Experiment", colour: "#2563eb"},
-        ]}
-        yTickFormatter={formatMoney}
-        tooltipFormatter={formatMoney}
-        monthTickInterval={monthTickInterval}
-      />
-    )}
-    {result && (
-      <StandardLineChart
-        title='Active User Base'
-        data={activeUsersChartData}
-        lines={[
-          {key: "active_baseline", name: "Active Baseline", colour: "#64748b"},
-          {key: "active_experiment", name: "Active Experiment", colour: "#2563eb"},
-          {key: "retained_baseline", name: "Retained Baseline", colour: "#bf0feb"},
-          {key: "retained_experiment", name: "Retained Experiment", colour: "#f14f93"},
-        ]}
-        yTickFormatter={formatNumber}
-        tooltipFormatter={formatNumber}
-        monthTickInterval={monthTickInterval}
-      />
-    )}
-    {result && (
-      <StandardLineChart
-        title='Paying User Base'
-        data={payingUsersChartData}
-        lines={[
-          {key: "baseline", name: "Baseline", colour: "#03c423"},
-          {key: "experiment", name: "Experiment", colour: "#7ee926"},
-        ]}
-        yTickFormatter={formatMoney}
-        tooltipFormatter={formatMoney}
-        monthTickInterval={monthTickInterval}
+      <ResultsDashboard
+        result={result}
+        formatMoney={formatMoney}
+        formatNumber={formatNumber}
       />
     )}
     </main>
