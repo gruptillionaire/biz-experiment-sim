@@ -378,6 +378,10 @@ function App() {
     });
 
     const data: ApiTypes.ExperimentOutcome = await response.json();
+    if (!response.ok) {
+      console.error("Simulation failed", data)
+      return;
+    }
     setResult(data);
   }
 

@@ -19,5 +19,5 @@ def health():
     return {"status": "ok"}
 
 @app.post("/simulate", response_model=ExperimentOutcome)    ## response_model validates output too
-def simulate(request: SimulationRequest):
+def simulate(request: SimulationRequest):   ## if input is out of range or otherwise invalid, will immediately error
     return simulate_business_experiment(request)

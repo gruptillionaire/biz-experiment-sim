@@ -17,5 +17,9 @@ Revenue, profit, CAC spend, active users, payback outputs
 
 ## Stack
 
-React + TSX Frontend
-Python Backend
+React + TSX // frontend
+Python // backend
+Rechart // charts
+FastAPI // POST methods
+Pydantic // strict backend->frontend typechecking for POST
+vite // local web app hosting
