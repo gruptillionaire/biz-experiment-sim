@@ -211,6 +211,15 @@ function InfoTip({ text }: { text: string }) {
     </span>
   );
 }
+function MetricCard({ label, value, tone = "neutral" }: { label: string, value: string, tone?: "neutral" | "good" | "bad" }) {
+  const colours = tone === "good" ? ["#86efac", "#f0fdf4"] : tone === "bad" ? ["#fca5a5", "#fef2f2"] : ["cbd5e1", "#ffffff"]
+  return (
+    <div style={{ border: "1px solid " + colours[0], borderRadius: "8px", padding: "14px 16px", background: colours[1], textAlign: "center" }}>
+      <span style={{ display: "block", marginBottom: "8px", color: "#64748b", fontSize: "0.9rem" }}>{label}</span>
+      <strong style={{ display: "block", fontSize: "1.35rem", color: "#111827" }}>{value}</strong>
+    </div>
+  );
+}
 
 function ResultsDashboard({ result, formatMoney, formatNumber }: { result: ApiTypes.ExperimentOutcome | null, formatMoney: (value: number, decPlaces?: number) => string, formatNumber: (value: number) => string }) {
   if (!result) {
@@ -259,50 +268,10 @@ function ResultsDashboard({ result, formatMoney, formatNumber }: { result: ApiTy
         experiment: experimentMonth.paying_users
       }
     }) ?? [];
-  const driverChartData =
-    result?.summary.driver_breakdown.map((driver) => ({
-      name: driver.label,
-      impact: driver.net_profit_uplift,
-    })) ?? [];
   const monthTickInterval = cumulativeProfitChartData.length > 24 ? Math.max(0, Math.floor(cumulativeProfitChartData.length / 12)) : 0
 
   return (
     <>
-      <section>
-        <h2>Driver Breakdown</h2>
-        <div style={{ width: "90%", maxWidth: 900, height: 320, margin: "0 auto" }}>
-          <ResponsiveContainer>
-            <BarChart
-              data={driverChartData}
-              margin={{ top: 20, right: 32, left: 64, bottom: 48 }}
-            >
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis
-                dataKey={"name"}
-                interval={0}
-                angle={-10}
-                textAnchor='end'
-                height={70}
-              />
-              <YAxis
-                width={90}
-                tickFormatter={(value) => formatMoney(Number(value))}
-              />
-              <Tooltip
-                formatter={(value) => formatMoney(Number(value ?? 0))}
-              />
-              <Bar dataKey="impact" name="Net profit impact">
-                {driverChartData.map((entry) => (
-                  <Cell
-                    key={entry.name}
-                    fill={entry.impact >= 0 ? "#16a34a" : "#dc2626"}
-                  />
-                ))}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      </section>
       <StandardLineChart
         title='Cumulative Net Profit'
         data={cumulativeProfitChartData}
@@ -352,6 +321,93 @@ function ResultsDashboard({ result, formatMoney, formatNumber }: { result: ApiTy
     </>
   );
 }
+function MonteCarloResultsDashboard({ result, formatMoney, formatNumber, formatPercent }: { result: ApiTypes.MonteCarloSummary | null, formatMoney: (value: number, decPlaces?: number) => string, formatNumber: (value: number) => string, formatPercent: (value: number) => string }) {
+  if (!result) {
+    return null;
+  }
+  const histogramData =
+    result?.uplift_histogram.map((bucket: ApiTypes.MonteCarloHistogramBucket) => ({
+      range: `${formatMoney(bucket.min)} to ${formatMoney(bucket.max)}`,
+      midpoint: (bucket.min + bucket.max) / 2,
+      count: bucket.count,
+      positive: bucket.max >= 1,
+    }))
+
+  return (
+    <>
+      <section>
+        <h2>Uplift Distribution</h2>
+        <div style={{ width: "90%", maxWidth: 900, height: 320, margin: "0 auto" }}>
+          <ResponsiveContainer>
+            <BarChart
+              data={histogramData}
+              margin={{ top: 20, right: 32, left: 48, bottom: 48 }}
+            >
+              <CartesianGrid strokeDasharray="3 3" />
+
+              <XAxis
+                dataKey="midpoint"
+                tickFormatter={(value) => formatMoney(Number(value))}
+              />
+
+              <YAxis />
+
+              <Tooltip
+                labelFormatter={(_, payload) => {
+                  const bucket = payload?.[0]?.payload;
+                  return bucket?.range ?? "";
+                }}
+                formatter={(value) => [`${value} runs`, "Samples"]}
+              />
+
+              <Bar dataKey="count" name="Runs">
+                {histogramData.map((bucket) => (
+                  <Cell
+                    key={bucket.range}
+                    fill={bucket.positive ? "#16a34a" : "#dc2626"}
+                  />
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </section>
+      <section>
+        <h2>Monte Carlo Risk Summary</h2>
+        <div style={{ width: "50%", display: "grid", margin: "0 auto", gap: "14px", padding: "15px" }}>
+          <MetricCard
+            label={"P10 Uplift"}
+            value={formatMoney(result.p10_net_profit_uplift)}
+            tone={result.p10_net_profit_uplift > 0 ? "good" : result.p10_net_profit_uplift < 0 ? "bad" : "neutral"}
+          />
+          <MetricCard
+            label={"Median Uplift"}
+            value={formatMoney(result.median_net_profit_uplift)}
+            tone={result.median_net_profit_uplift > 0 ? "good" : result.median_net_profit_uplift < 0 ? "bad" : "neutral"}
+          />
+          <MetricCard
+            label={"P90 Uplift"}
+            value={formatMoney(result.p90_net_profit_uplift)}
+            tone={result.p90_net_profit_uplift > 0 ? "good" : result.p90_net_profit_uplift < 0 ? "bad" : "neutral"}
+          />
+          <MetricCard
+            label="Chance to beat baseline"
+            value={formatPercent(result.chance_to_beat_baseline)}
+            tone={result.chance_to_beat_baseline >= 0.5 ? "good" : "bad"}
+          />
+
+          <MetricCard
+            label="Chance to lose money"
+            value={formatPercent(result.chance_to_lose_money)}
+            tone={result.chance_to_lose_money <= 0.25 ? "good" : "bad"}
+          />
+        </div>
+      </section>
+    </>
+  );
+}
+
+
 function NumberInput({ value, onCommit, step = 1, style }: { value: number, onCommit: (value: number) => void, step?: number, style?: CSSProperties }) {
   const [draft, setDraft] = useState(String(value));
   return (
@@ -434,7 +490,14 @@ function App() {
     )
   }
 
+
   const [result, setResult] = useState<ApiTypes.ExperimentOutcome | null>(null)
+  const [monteCarloResult, setMonteCarloResult] = useState<ApiTypes.MonteCarloSummary | null>(null)
+  const driverChartData =
+    result?.summary.driver_breakdown.map((driver) => ({
+      name: driver.label,
+      impact: driver.net_profit_uplift,
+    })) ?? [];
   async function runSimulation() {
     console.log("running")
     const requesting = simulationMode === "deterministic" ? request : monteCarloRequest
@@ -447,12 +510,16 @@ function App() {
       body: JSON.stringify(requesting),
     });
 
-    const data: ApiTypes.ExperimentOutcome = await response.json();
+    const data: any = await response.json(); {/* sloppy. in fact this whole function is quite sloppy. */ }
     if (!response.ok) {
       console.error("Simulation failed", data)
       return;
     }
-    setResult(data);
+    if (simulationMode === "deterministic") {
+      setResult(data);
+    } else {
+      setMonteCarloResult(data);
+    }
   }
 
   return (
@@ -534,26 +601,26 @@ function App() {
             <section key={section.title}>
               <h3>{section.title}</h3>
               {section.fields.map((field) => (
-                <label key={field.key} style={{display: 'flex', flexDirection: 'column', gap: '8px', alignItems: 'center'}}>
-                  <span style={{fontWeight: 'bold'}}>
+                <label key={field.key} style={{ display: 'flex', flexDirection: 'column', gap: '8px', alignItems: 'center' }}>
+                  <span style={{ fontWeight: 'bold' }}>
                     {field.label + "\t" + (field.format === "money" ? (currencyType == "GBP" ? "(£)" : "($)") + "\t" : field.format === "percent" ? "(%)" : "")} {field.info && <InfoTip text={field.info} />}
                   </span>
-                  <div style={{padding: "8px"}}>
+                  <div style={{ padding: "8px" }}>
                     {ExperimentBoundRange.map((bound) => (
-                      <label style={{padding: "8px"}} key={bound}>
+                      <label style={{ padding: "8px" }} key={bound}>
                         {bound.at(0)?.toUpperCase() + bound.slice(1) + ":"}
-                          <NumberInput
-                            style={{margin: "5px", width: "50px"}}
-                            key={bound}
-                            step={field.step ?? 1}
-                            value={field.format === "percent" ? Math.round(monteCarloRequest.experiment[field.key][bound] * 100) : monteCarloRequest.experiment[field.key][bound]}
-                            onCommit={(value) => {
-                              setMonteCarloField(field.key,
-                                bound,
-                                field.format === "percent" ? value / 100 : value
-                              )
-                            }}
-                          />
+                        <NumberInput
+                          style={{ margin: "5px", width: "50px" }}
+                          key={bound}
+                          step={field.step ?? 1}
+                          value={field.format === "percent" ? Math.round(monteCarloRequest.experiment[field.key][bound] * 100) : monteCarloRequest.experiment[field.key][bound]}
+                          onCommit={(value) => {
+                            setMonteCarloField(field.key,
+                              bound,
+                              field.format === "percent" ? value / 100 : value
+                            )
+                          }}
+                        />
                       </label>
                     ))}
                   </div>
@@ -563,10 +630,10 @@ function App() {
           ))}
         </div>
       </div>
-      <span style={{padding:"15px"}}>
-        <span style={{fontWeight: 'bold'}}>{"Months:"}</span>
+      <span style={{ padding: "15px" }}>
+        <span style={{ fontWeight: 'bold' }}>{"Months:"}</span>
         <input
-          style={{width: "40px", marginLeft: "15px"}}
+          style={{ width: "40px", marginLeft: "15px" }}
           type="number"
           step={1}
           value={request.months}
@@ -578,19 +645,56 @@ function App() {
       <button style={{ marginBottom: "50px" }} onClick={runSimulation}>
         Run Simulation
       </button>
-
-      {simulationMode === "deterministic" && result && (
-        <ResultsDashboard
-          result={result}
-          formatMoney={formatMoney}
-          formatNumber={formatNumber}
-        />
+      {result && simulationMode === "deterministic" && (
+        <>
+          <section>
+            <h2>Driver Breakdown</h2>
+            <div style={{ width: "90%", maxWidth: 900, height: 320, margin: "0 auto" }}>
+              <ResponsiveContainer>
+                <BarChart
+                  data={driverChartData}
+                  margin={{ top: 20, right: 32, left: 64, bottom: 48 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis
+                    dataKey={"name"}
+                    interval={0}
+                    angle={-10}
+                    textAnchor='end'
+                    height={70}
+                  />
+                  <YAxis
+                    width={90}
+                    tickFormatter={(value) => formatMoney(Number(value))}
+                  />
+                  <Tooltip
+                    formatter={(value) => formatMoney(Number(value ?? 0))}
+                  />
+                  <Bar dataKey="impact" name="Net profit impact">
+                    {driverChartData.map((entry) => (
+                      <Cell
+                        key={entry.name}
+                        fill={entry.impact >= 0 ? "#16a34a" : "#dc2626"}
+                      />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </section>
+          <ResultsDashboard
+            result={result}
+            formatMoney={formatMoney}
+            formatNumber={formatNumber}
+          />
+        </>
       )}
-      {simulationMode === "monte-carlo" && result && (
-        <ResultsDashboard
-          result={result}
+      {monteCarloResult && simulationMode === "monte-carlo" && (
+        <MonteCarloResultsDashboard
+          result={monteCarloResult}
           formatMoney={formatMoney}
           formatNumber={formatNumber}
+          formatPercent={formatPercent}
         />
       )}
     </main>

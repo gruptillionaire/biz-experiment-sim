@@ -75,6 +75,10 @@ class ExperimentSummary(BaseModel):
     baseline_overtake_month: int | None
     driver_breakdown: list[DriverImpact]
 
+class MonteCarloHistogramBucket(BaseModel):
+    min: float
+    max: float
+    count: int
 class MonteCarloSummary(BaseModel):
     samples: int
     p10_net_profit_uplift: float
@@ -82,6 +86,7 @@ class MonteCarloSummary(BaseModel):
     p90_net_profit_uplift: float
     chance_to_beat_baseline: float
     chance_to_lose_money: float
+    uplift_histogram: list[MonteCarloHistogramBucket]
 
 class ExperimentOutcome(BaseModel):
     baseline: SimulationResults

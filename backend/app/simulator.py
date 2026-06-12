@@ -126,6 +126,71 @@ def simulate_business_experiment(request: SimulationRequest):
 def percentile(sorted_values: list[float], p: float) -> float:
     index = int((len(sorted_values) - 1) * p)
     return sorted_values[index]
+def build_fixed_range_buckets(minimum: float, maximum: float, bucket_count: int):
+    if bucket_count <= 0:
+        return []
+
+    if minimum == maximum:
+        return [
+            MonteCarloHistogramBucket(
+                min=minimum,
+                max=maximum,
+                count=0,
+            )
+        ]
+
+    bucket_size = (maximum - minimum) / bucket_count
+    buckets = []
+
+    for i in range(bucket_count):
+        bucket_min = minimum + bucket_size * i
+        bucket_max = minimum + bucket_size * (i + 1)
+
+        buckets.append(
+            MonteCarloHistogramBucket(
+                min=bucket_min,
+                max=bucket_max,
+                count=0,
+            )
+        )
+    return buckets
+def split_bucket_counts_around_zero(minimum: float, maximum: float, bucket_count: int):
+    negative_width = abs(minimum)
+    positive_width = maximum
+    total_width = negative_width + positive_width
+
+    negative_count = max(1, min(bucket_count - 1, round(bucket_count * negative_width / total_width)))
+
+    return negative_count, bucket_count - negative_count
+def build_histogram_buckets(values: list[float], bucket_count: int = 20) -> list[MonteCarloHistogramBucket]:
+    if not values:
+        return []
+    minimum = min(values)
+    maximum = max(values)
+    if minimum == maximum:
+        return [
+            MonteCarloHistogramBucket(
+                min = minimum,
+                max = maximum,
+                count = len(values)
+            )
+        ]   ## split has to occur between boundaries, otherwise some -ves get mixed in with +ves, which is bad data display
+    elif minimum < 0 < maximum:
+        negative_bucket_count, positive_bucket_count = split_bucket_counts_around_zero(minimum, maximum, bucket_count)
+        ## weight splits between how much is -ve and how much +ve
+        buckets: list[MonteCarloHistogramBucket] = build_fixed_range_buckets(minimum, 0, negative_bucket_count) + build_fixed_range_buckets(0, maximum, positive_bucket_count)
+    else:
+        buckets = build_fixed_range_buckets(minimum, maximum, bucket_count)
+
+    for value in values:
+        for bucket in buckets:
+            is_last_bucket = bucket is buckets[-1]
+
+            if bucket.min <= value < bucket.max or (is_last_bucket and value == bucket.max):
+                bucket.count += 1
+                break
+    return buckets
+
 def simulate_monte_carlo(request: MonteCarloRequest) -> MonteCarloSummary:
     uplifts = []
     experiment_nets = []
@@ -155,4 +220,5 @@ def simulate_monte_carlo(request: MonteCarloRequest) -> MonteCarloSummary:
         p90_net_profit_uplift=percentile(uplifts, 0.90),
         chance_to_beat_baseline=samples_beat_baseline / request.samples,
         chance_to_lose_money=samples_lost_money / request.samples,
+        uplift_histogram=build_histogram_buckets(uplifts, 20)
     )

@@ -75,6 +75,21 @@ export type DriverImpact = {
     net_profit_uplift: number
 }
 
+export type MonteCarloHistogramBucket = {
+    min: number
+    max: number
+    count: number
+}
+export type MonteCarloSummary = {
+    samples: number;
+    p10_net_profit_uplift: number;
+    median_net_profit_uplift: number;
+    p90_net_profit_uplift: number;
+    chance_to_beat_baseline: number;
+    chance_to_lose_money: number;
+    uplift_histogram: [MonteCarloHistogramBucket];
+}
+
 export type ExperimentOutcome = {
     baseline: SimulationResults;
     experiment: SimulationResults;
