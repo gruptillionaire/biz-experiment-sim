@@ -22,6 +22,30 @@ export type ExperimentChanges = {
     fixed_monthly_cost_delta: number;
 }
 
+
+type ExperimentRange = {
+    min: number
+    expected: number
+    max: number
+}
+
+type MonteCarloExperimentChanges = {
+    new_users_per_month_delta: ExperimentRange
+    activation_rate_delta: ExperimentRange
+    monthly_retention_rate_delta: ExperimentRange
+    conversion_rate_delta: ExperimentRange
+    avg_revenue_per_paying_user_delta: ExperimentRange
+    customer_acquisition_cost_delta: ExperimentRange
+    gross_margin_rate_delta: ExperimentRange
+    fixed_monthly_cost_delta: ExperimentRange
+}
+
+export type MonteCarloSimulationRequest = {
+    baseline: BaselineMetrics;
+    experiment: MonteCarloExperimentChanges;
+    months: number;
+    samples: number;
+}
 export type SimulationRequest = {
     baseline: BaselineMetrics;
     experiment: ExperimentChanges;

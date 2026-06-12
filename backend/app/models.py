@@ -22,10 +22,31 @@ class ExperimentChanges(BaseModel):
     gross_margin_rate_delta: float = 0
     fixed_monthly_cost_delta: float = 0
 
+class ExperimentRange(BaseModel):
+    min: float
+    expected: float
+    max: float
+
+class MonteCarloExperimentChanges(BaseModel):
+    new_users_per_month_delta: ExperimentRange
+    activation_rate_delta: ExperimentRange
+    monthly_retention_rate_delta: ExperimentRange
+    conversion_rate_delta: ExperimentRange
+    avg_revenue_per_paying_user_delta: ExperimentRange
+    customer_acquisition_cost_delta: ExperimentRange
+    gross_margin_rate_delta: ExperimentRange
+    fixed_monthly_cost_delta: ExperimentRange
+
 class SimulationRequest(BaseModel):
     baseline: BaselineMetrics
     experiment: ExperimentChanges
     months: int = Field(ge=1, le=72)
+
+class MonteCarloRequest(BaseModel):
+    baseline: BaselineMetrics
+    experiment: MonteCarloExperimentChanges
+    months: int = Field(ge=1, le=72)
+    samples: int = Field(default=1000, ge=100, le=50000)
 
 class MonthSimulation(BaseModel):
     month: int = Field(ge=0, le=72)
@@ -53,6 +74,14 @@ class ExperimentSummary(BaseModel):
     net_profit_uplift: float = 0
     baseline_overtake_month: int | None
     driver_breakdown: list[DriverImpact]
+
+class MonteCarloSummary(BaseModel):
+    samples: int
+    p10_net_profit_uplift: float
+    median_net_profit_uplift: float
+    p90_net_profit_uplift: float
+    chance_to_beat_baseline: float
+    chance_to_lose_money: float
 
 class ExperimentOutcome(BaseModel):
     baseline: SimulationResults

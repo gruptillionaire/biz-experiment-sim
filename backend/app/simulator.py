@@ -1,10 +1,15 @@
 from app.models import *
+import random
+
 
 def simulate():
     return {"message": "sim to-do"}
 
 def clamp(x: int):
     return max(0, min(1, x)) 
+
+def sample_range(value: ExperimentRange) -> float:
+    return random.triangular(value.min, value.max, value.expected)  ## better than uniform (essentially normally distributed)
 
 def simulate_metrics(metrics: BaselineMetrics, months: int) -> SimulationResults:
     active_users = float(metrics.starting_users)
@@ -39,6 +44,17 @@ def simulate_metrics(metrics: BaselineMetrics, months: int) -> SimulationResults
         monthly_results=monthResults
     )
 
+def sample_experiment(experiment: MonteCarloExperimentChanges) -> ExperimentChanges:
+    return ExperimentChanges(
+        new_users_per_month_delta=sample_range(experiment.new_users_per_month_delta),
+        activation_rate_delta=sample_range(experiment.activation_rate_delta),
+        monthly_retention_rate_delta=sample_range(experiment.monthly_retention_rate_delta),
+        conversion_rate_delta=sample_range(experiment.conversion_rate_delta),
+        avg_revenue_per_paying_user_delta=sample_range(experiment.avg_revenue_per_paying_user_delta),
+        customer_acquisition_cost_delta=sample_range(experiment.customer_acquisition_cost_delta),
+        gross_margin_rate_delta=sample_range(experiment.gross_margin_rate_delta),
+        fixed_monthly_cost_delta=sample_range(experiment.fixed_monthly_cost_delta),
+    )
 def apply_experiment(baseline: BaselineMetrics, experiment: ExperimentChanges):
     return BaselineMetrics(
         starting_users=baseline.starting_users,
@@ -106,4 +122,37 @@ def simulate_business_experiment(request: SimulationRequest):
             baseline_overtake_month = find_break_even_month(baseline_results.monthly_results, experiment_results.monthly_results),
             driver_breakdown = driver_breakdown
         )
+    )
+def percentile(sorted_values: list[float], p: float) -> float:
+    index = int((len(sorted_values) - 1) * p)
+    return sorted_values[index]
+def simulate_monte_carlo(request: MonteCarloRequest) -> MonteCarloSummary:
+    uplifts = []
+    experiment_nets = []
+
+    for _ in range(request.samples):
+        sampled_experiment = sample_experiment(request.experiment)
+
+        result = simulate_business_experiment(
+            SimulationRequest(
+                baseline=request.baseline,
+                experiment=sampled_experiment,
+                months=request.months,
+            )
+        )
+
+        uplifts.append(result.summary.net_profit_uplift)
+        experiment_nets.append(result.summary.experiment_net)
+    uplifts.sort()
+
+    samples_beat_baseline = sum(1 for uplift in uplifts if uplift > 0) ## if it's better than base it's a win
+    samples_lost_money = sum(1 for net in experiment_nets if net < 0) ## but that doesn't mean it's a win, as if net<0 it's still a loss.
+
+    return MonteCarloSummary(
+        samples=request.samples,
+        p10_net_profit_uplift=percentile(uplifts, 0.10),
+        median_net_profit_uplift=percentile(uplifts, 0.50),
+        p90_net_profit_uplift=percentile(uplifts, 0.90),
+        chance_to_beat_baseline=samples_beat_baseline / request.samples,
+        chance_to_lose_money=samples_lost_money / request.samples,
     )
