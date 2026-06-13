@@ -162,10 +162,10 @@ type StandardLineChartProps = {
 
 function StandardLineChart({ title, data, lines, yTickFormatter, tooltipFormatter, monthTickInterval }: StandardLineChartProps) {
   return (
-    <section>
+    <section className="chart-section">
       <h2>{title}</h2>
 
-      <div style={{ width: "100%", height: 320, margin: "0 auto" }}>
+      <div className="chart-frame">
         <ResponsiveContainer>
           <LineChart data={data} margin={{ top: 20, right: 32, left: 92, bottom: 36 }}>
             <CartesianGrid strokeDasharray="3 3" />
@@ -212,11 +212,10 @@ function InfoTip({ text }: { text: string }) {
   );
 }
 function MetricCard({ label, value, tone = "neutral" }: { label: string, value: string, tone?: "neutral" | "good" | "bad" }) {
-  const colours = tone === "good" ? ["#86efac", "#f0fdf4"] : tone === "bad" ? ["#fca5a5", "#fef2f2"] : ["cbd5e1", "#ffffff"]
   return (
-    <div style={{ border: "1px solid " + colours[0], borderRadius: "8px", padding: "14px 16px", background: colours[1], textAlign: "center" }}>
-      <span style={{ display: "block", marginBottom: "8px", color: "#64748b", fontSize: "0.9rem" }}>{label}</span>
-      <strong style={{ display: "block", fontSize: "1.35rem", color: "#111827" }}>{value}</strong>
+    <div className={`metric-card metric-card-${tone}`}>
+      <span>{label}</span>
+      <strong>{value}</strong>
     </div>
   );
 }
@@ -321,7 +320,7 @@ function ResultsDashboard({ result, formatMoney, formatNumber }: { result: ApiTy
     </>
   );
 }
-function MonteCarloResultsDashboard({ result, formatMoney, formatNumber, formatPercent }: { result: ApiTypes.MonteCarloSummary | null, formatMoney: (value: number, decPlaces?: number) => string, formatNumber: (value: number) => string, formatPercent: (value: number) => string }) {
+function MonteCarloResultsDashboard({ result, formatMoney, formatPercent }: { result: ApiTypes.MonteCarloSummary | null, formatMoney: (value: number, decPlaces?: number) => string, formatPercent: (value: number) => string }) {
   if (!result) {
     return null;
   }
@@ -335,9 +334,9 @@ function MonteCarloResultsDashboard({ result, formatMoney, formatNumber, formatP
 
   return (
     <>
-      <section>
+      <section className="chart-section">
         <h2>Uplift Distribution</h2>
-        <div style={{ width: "90%", maxWidth: 900, height: 320, margin: "0 auto" }}>
+        <div className="chart-frame chart-frame-wide">
           <ResponsiveContainer>
             <BarChart
               data={histogramData}
@@ -372,9 +371,9 @@ function MonteCarloResultsDashboard({ result, formatMoney, formatNumber, formatP
           </ResponsiveContainer>
         </div>
       </section>
-      <section>
+      <section className="summary-section">
         <h2>Monte Carlo Risk Summary</h2>
-        <div style={{ width: "50%", display: "grid", margin: "0 auto", gap: "14px", padding: "15px" }}>
+        <div className="metric-grid">
           <MetricCard
             label={"P10 Uplift"}
             value={formatMoney(result.p10_net_profit_uplift)}
@@ -523,18 +522,20 @@ function App() {
   }
 
   return (
-    <main >
-      <h1>Business Experiment Simulator</h1>
-      <label style={{ display: "flex", justifyContent: "flex-end", padding: "10px", marginRight: "30px" }}>
-        Currency Type: <div style={{ margin: "5px" }} /> {/* \t not working here... hacky fix */}
-        <select
-          value={currencyType}
-          onChange={(event) => setCurrencyType(event.target.value as "GBP" | "USD")}  // asserts type
-        >
-          <option value="GBP">GBP (£)</option>
-          <option value="USD">USD ($)</option>
-        </select>
-      </label>
+    <main className="app-shell">
+      <header className="app-header">
+        <h1>Business Experiment Simulator</h1>
+        <label className="select-control">
+          Currency
+          <select
+            value={currencyType}
+            onChange={(event) => setCurrencyType(event.target.value as "GBP" | "USD")}  // asserts type
+          >
+            <option value="GBP">GBP (£)</option>
+            <option value="USD">USD ($)</option>
+          </select>
+        </label>
+      </header>
 
       <div className='input-panel'>
         <div className='input-column'>
@@ -543,7 +544,7 @@ function App() {
             <section key={section.title}>
               <h3>{section.title}</h3>
               {section.fields.map((field) => (
-                <label key={field.key}>
+                <label className="field-row" key={field.key}>
                   {field.label + ":\t" + (field.format === "money" ? (currencyType == "GBP" ? "£" : "$") + "\t" : "")}
                   <NumberInput
                     step={field.step ?? 1}
@@ -554,7 +555,7 @@ function App() {
                       )
                     }}
                   />
-                  {"\t" + (field.format === "percent" ? "%" : "")}
+                  <span className="field-suffix">{field.format === "percent" ? "%" : ""}</span>
                 </label>
               ))}
             </section>
@@ -563,10 +564,9 @@ function App() {
         <div className='input-column'>
           <h2>Experiment</h2>
 
-          <label>
+          <label className="select-control simulation-mode-control">
             Simulation Mode:
             <select
-              style={{ marginLeft: "8px", paddingRight: "5px" }}
               value={simulationMode}
               onChange={(event) => setSimulationMode(event.target.value as SimulationMode)}
             >
@@ -580,7 +580,7 @@ function App() {
             <section key={section.title}>
               <h3>{section.title}</h3>
               {section.fields.map((field) => (
-                <label key={field.key}>
+                <label className="field-row" key={field.key}>
                   {field.label + ":\t" + (field.format === "money" ? (currencyType == "GBP" ? "£" : "$") + "\t" : field.format === "percent" ? "+" : "")}
                   <NumberInput
                     step={field.step ?? 1}
@@ -591,8 +591,10 @@ function App() {
                       )
                     }}
                   />
-                  {"\t" + (field.format === "percent" ? "%" : "")}
-                  {field.info && <InfoTip text={field.info} />}
+                  <span className="field-suffix">
+                    {field.format === "percent" ? "%" : ""}
+                    {field.info && <InfoTip text={field.info} />}
+                  </span>
                 </label>
               ))}
             </section>
@@ -601,16 +603,16 @@ function App() {
             <section key={section.title}>
               <h3>{section.title}</h3>
               {section.fields.map((field) => (
-                <label key={field.key} style={{ display: 'flex', flexDirection: 'column', gap: '8px', alignItems: 'center' }}>
-                  <span style={{ fontWeight: 'bold' }}>
+                <label className="range-field" key={field.key}>
+                  <span className="range-field-title">
                     {field.label + "\t" + (field.format === "money" ? (currencyType == "GBP" ? "(£)" : "($)") + "\t" : field.format === "percent" ? "(%)" : "")} {field.info && <InfoTip text={field.info} />}
                   </span>
-                  <div style={{ padding: "8px" }}>
+                  <div className="range-row">
                     {ExperimentBoundRange.map((bound) => (
-                      <label style={{ padding: "8px" }} key={bound}>
+                      <label className="range-bound" key={bound}>
                         {bound.at(0)?.toUpperCase() + bound.slice(1) + ":"}
                         <NumberInput
-                          style={{ margin: "5px", width: "50px" }}
+                          style={{ width: "56px" }}
                           key={bound}
                           step={field.step ?? 1}
                           value={field.format === "percent" ? Math.round(monteCarloRequest.experiment[field.key][bound] * 100) : monteCarloRequest.experiment[field.key][bound]}
@@ -630,10 +632,10 @@ function App() {
           ))}
         </div>
       </div>
-      <span style={{ padding: "15px" }}>
-        <span style={{ fontWeight: 'bold' }}>{"Months:"}</span>
+      <div className="run-controls">
+        <label className="months-control">
+        <span>{"Months"}</span>
         <input
-          style={{ width: "40px", marginLeft: "15px" }}
           type="number"
           step={1}
           value={request.months}
@@ -641,15 +643,16 @@ function App() {
             updateMonths(Math.max(1, Math.min(72, Number(event.target.value))))
           }
         />
-      </span>
-      <button style={{ marginBottom: "50px" }} onClick={runSimulation}>
+        </label>
+      <button className="primary-button" onClick={runSimulation}>
         Run Simulation
       </button>
+      </div>
       {result && simulationMode === "deterministic" && (
         <>
-          <section>
+          <section className="chart-section">
             <h2>Driver Breakdown</h2>
-            <div style={{ width: "90%", maxWidth: 900, height: 320, margin: "0 auto" }}>
+            <div className="chart-frame chart-frame-wide">
               <ResponsiveContainer>
                 <BarChart
                   data={driverChartData}
@@ -693,7 +696,6 @@ function App() {
         <MonteCarloResultsDashboard
           result={monteCarloResult}
           formatMoney={formatMoney}
-          formatNumber={formatNumber}
           formatPercent={formatPercent}
         />
       )}

@@ -77,5 +77,4 @@ vite // local frontend development
 
 ## Planned Improvements
 - Scenario comparison
-- UI polish
 - Deployment build (?)
