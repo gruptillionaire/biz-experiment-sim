@@ -5,6 +5,10 @@ Lightweight product-metric simulation tool for modelling how product and busines
 
 This simulator compares a baseline model against an experimental scenario & visualises the difference through deterministic forecasts and Monte Carlo risk analysis
 
+![main page](image.png)
+![deterministic result snapshot](image-1.png)
+![monte carlo result snapshot](image-2.png)
+
 ## Purpose
 
 This project explores how product & business experiments can be compared through simple deterministic modelling. It is designed as an internal decision tool rather than a prediction engine.
@@ -65,6 +69,13 @@ For each run, the simulator samples values from the supplied ranges via a triang
 - Histogram buckets for uplift distribution
 
 Histogram buckets are bounded by zero and bucket amount is dynamic based off of the % of each sign.
+
+Assumptions:
+- Each experiment metric varies independently
+- The expected value is the most likely value (triangular randomness)
+- The simulation repeats the same sampled experiment across the full period, not by-month
+- The model compares sampled experiment profit against the *deterministic* baseline
+- 'Chance to lose money' is absolute, not relative to baseline
 
 ## Stack
 
