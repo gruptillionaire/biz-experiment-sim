@@ -1,26 +1,36 @@
+import os
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from .models import (
+    ExperimentOutcome,
+    MonteCarloRequest,
+    MonteCarloSummary,
+    SimulationRequest,
+)
+from .simulator import simulate_business_experiment, simulate_monte_carlo
 
-from app.models import SimulationRequest, ExperimentOutcome, MonteCarloRequest
-from app.simulator import simulate_business_experiment, simulate_monte_carlo
-
-app = FastAPI(title = "Biz Experiment Simulator")
+app = FastAPI(title="Business Experiment Simulator")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=[os.getenv("FRONTEND_ORIGIN", "http://localhost:5173")],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
+
 @app.get("/health")
-def health():
+def health() -> dict[str, str]:
     return {"status": "ok"}
 
-@app.post("/simulate", response_model=ExperimentOutcome)    ## response_model validates output too
-def simulate(request: SimulationRequest):   ## if input is out of range or otherwise invalid, will immediately error
+
+@app.post("/simulate", response_model=ExperimentOutcome)
+def simulate(request: SimulationRequest) -> ExperimentOutcome:
     return simulate_business_experiment(request)
-@app.post("/simulate-monte-carlo")
-def simulate_monte_carlo_endpoint(request: MonteCarloRequest):
+
+
+@app.post("/simulate-monte-carlo", response_model=MonteCarloSummary)
+def simulate_monte_carlo_endpoint(request: MonteCarloRequest) -> MonteCarloSummary:
     return simulate_monte_carlo(request)

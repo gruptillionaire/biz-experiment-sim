@@ -1,5 +1,5 @@
-from pydantic import BaseModel, Field ## pydantic enforces typed inputs/outputs rather than fastapi using loose json dicts
-## ge >=, gt >, lt <, le <=
+from pydantic import BaseModel, Field, model_validator
+
 
 class BaselineMetrics(BaseModel):
     starting_users: int = Field(ge=0)
@@ -12,6 +12,7 @@ class BaselineMetrics(BaseModel):
     gross_margin_rate: float = Field(ge=0, le=1)
     fixed_monthly_cost: float = Field(ge=0)
 
+
 class ExperimentChanges(BaseModel):
     new_users_per_month_delta: float = 0
     activation_rate_delta: float = 0
@@ -22,10 +23,18 @@ class ExperimentChanges(BaseModel):
     gross_margin_rate_delta: float = 0
     fixed_monthly_cost_delta: float = 0
 
+
 class ExperimentRange(BaseModel):
     min: float
     expected: float
     max: float
+
+    @model_validator(mode="after")
+    def validate_bounds(self) -> "ExperimentRange":
+        if not self.min <= self.expected <= self.max:
+            raise ValueError("Expected value must be between min and max")
+        return self
+
 
 class MonteCarloExperimentChanges(BaseModel):
     new_users_per_month_delta: ExperimentRange
@@ -37,16 +46,19 @@ class MonteCarloExperimentChanges(BaseModel):
     gross_margin_rate_delta: ExperimentRange
     fixed_monthly_cost_delta: ExperimentRange
 
+
 class SimulationRequest(BaseModel):
     baseline: BaselineMetrics
     experiment: ExperimentChanges
     months: int = Field(ge=1, le=72)
+
 
 class MonteCarloRequest(BaseModel):
     baseline: BaselineMetrics
     experiment: MonteCarloExperimentChanges
     months: int = Field(ge=1, le=72)
     samples: int = Field(default=1000, ge=100, le=50000)
+
 
 class MonthSimulation(BaseModel):
     month: int = Field(ge=0, le=72)
@@ -58,15 +70,18 @@ class MonthSimulation(BaseModel):
     monthly_net: float = 0
     cumulative_net_profit: float = 0
 
+
 class SimulationResults(BaseModel):
     net_profit: float = 0
     total_active_users: float = Field(ge=0)
     monthly_results: list[MonthSimulation]
 
+
 class DriverImpact(BaseModel):
     key: str
     label: str
     net_profit_uplift: float
+
 
 class ExperimentSummary(BaseModel):
     baseline_net: float = 0
@@ -75,10 +90,13 @@ class ExperimentSummary(BaseModel):
     baseline_overtake_month: int | None
     driver_breakdown: list[DriverImpact]
 
+
 class MonteCarloHistogramBucket(BaseModel):
     min: float
     max: float
     count: int
+
+
 class MonteCarloSummary(BaseModel):
     samples: int
     p10_net_profit_uplift: float
@@ -87,6 +105,7 @@ class MonteCarloSummary(BaseModel):
     chance_to_beat_baseline: float
     chance_to_lose_money: float
     uplift_histogram: list[MonteCarloHistogramBucket]
+
 
 class ExperimentOutcome(BaseModel):
     baseline: SimulationResults

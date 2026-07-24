@@ -15,6 +15,8 @@ import {
 import * as ApiTypes from './frontend_models.ts'
 import './App.css'
 
+const API_BASE_URL = (import.meta.env.VITE_API_URL ?? "http://127.0.0.1:8000").replace(/\/$/, "")
+
 const defaultRequest: ApiTypes.SimulationRequest = {
   baseline: {
     starting_users: 1000,
@@ -313,8 +315,8 @@ function ResultsDashboard({ result, formatMoney, formatNumber }: { result: ApiTy
           { key: "baseline", name: "Baseline", colour: "#03c423" },
           { key: "experiment", name: "Experiment", colour: "#7ee926" },
         ]}
-        yTickFormatter={formatMoney}
-        tooltipFormatter={formatMoney}
+        yTickFormatter={formatNumber}
+        tooltipFormatter={formatNumber}
         monthTickInterval={monthTickInterval}
       />
     </>
@@ -329,7 +331,7 @@ function MonteCarloResultsDashboard({ result, formatMoney, formatPercent }: { re
       range: `${formatMoney(bucket.min)} to ${formatMoney(bucket.max)}`,
       midpoint: (bucket.min + bucket.max) / 2,
       count: bucket.count,
-      positive: bucket.max >= 1,
+      positive: bucket.max > 0,
     }))
 
   return (
@@ -428,19 +430,51 @@ function NumberInput({ value, onCommit, step = 1, style }: { value: number, onCo
 
 type SimulationMode = "deterministic" | "monte-carlo"
 const ExperimentBoundRange = ["min", "expected", "max"] as const
+type ExperimentBound = typeof ExperimentBoundRange[number]
+
+function getApiError(payload: unknown) {
+  if (
+    typeof payload === "object"
+    && payload !== null
+    && "detail" in payload
+  ) {
+    const detail = payload.detail
+    return typeof detail === "string" ? detail : JSON.stringify(detail)
+  }
+
+  return "The simulation request failed."
+}
+
+async function postSimulation<T>(path: string, payload: unknown): Promise<T> {
+  const response = await fetch(`${API_BASE_URL}/${path}`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  })
+  const data: unknown = await response.json()
+
+  if (!response.ok) {
+    throw new Error(getApiError(data))
+  }
+
+  return data as T
+}
 
 function App() {
   const [currencyType, setCurrencyType] = useState<"GBP" | "USD">("GBP");
   const [simulationMode, setSimulationMode] = useState<SimulationMode>("deterministic");
+  const currencySymbol = currencyType === "GBP" ? "\u00A3" : "$"
   function formatMoney(value: number, decPlaces?: number) {
-    return new Intl.NumberFormat(currencyType == "GBP" ? "en-GB" : "en-US", {
+    return new Intl.NumberFormat(currencyType === "GBP" ? "en-GB" : "en-US", {
       style: "currency",
       currency: currencyType,
       maximumFractionDigits: decPlaces ?? 0,
     }).format(value);
   }
   function formatNumber(value: number) {
-    return new Intl.NumberFormat(currencyType == "GBP" ? "en-GB" : "en-US", {
+    return new Intl.NumberFormat(currencyType === "GBP" ? "en-GB" : "en-US", {
       maximumFractionDigits: 0,
     }).format(value);
   }
@@ -452,6 +486,13 @@ function App() {
   const [monteCarloRequest, setMonteCarloRequest] = useState<ApiTypes.MonteCarloSimulationRequest>(defaultMonteCarloRequest)
   function updateBaselineField(field: keyof ApiTypes.BaselineMetrics, value: number) {
     setRequest((current) => ({
+      ...current,
+      baseline: {
+        ...current.baseline,
+        [field]: value,
+      },
+    }))
+    setMonteCarloRequest((current) => ({
       ...current,
       baseline: {
         ...current.baseline,
@@ -473,9 +514,13 @@ function App() {
       ...current,
       months: value
     }))
+    setMonteCarloRequest((current) => ({
+      ...current,
+      months: value
+    }))
   }
 
-  function setMonteCarloField(field: keyof ApiTypes.ExperimentChanges, bound: string, value: number) {
+  function setMonteCarloField(field: keyof ApiTypes.ExperimentChanges, bound: ExperimentBound, value: number) {
     setMonteCarloRequest((current) => ({
       ...current,
       experiment: {
@@ -492,32 +537,37 @@ function App() {
 
   const [result, setResult] = useState<ApiTypes.ExperimentOutcome | null>(null)
   const [monteCarloResult, setMonteCarloResult] = useState<ApiTypes.MonteCarloSummary | null>(null)
+  const [isRunning, setIsRunning] = useState(false)
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const driverChartData =
     result?.summary.driver_breakdown.map((driver) => ({
       name: driver.label,
       impact: driver.net_profit_uplift,
     })) ?? [];
   async function runSimulation() {
-    console.log("running")
-    const requesting = simulationMode === "deterministic" ? request : monteCarloRequest
-    const url = simulationMode === "deterministic" ? "simulate" : "simulate-monte-carlo"
-    const response = await fetch("http://127.0.0.1:8000/" + url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(requesting),
-    });
+    setIsRunning(true)
+    setErrorMessage(null)
 
-    const data: any = await response.json(); {/* sloppy. in fact this whole function is quite sloppy. */ }
-    if (!response.ok) {
-      console.error("Simulation failed", data)
-      return;
-    }
-    if (simulationMode === "deterministic") {
-      setResult(data);
-    } else {
-      setMonteCarloResult(data);
+    try {
+      if (simulationMode === "deterministic") {
+        const data = await postSimulation<ApiTypes.ExperimentOutcome>(
+          "simulate",
+          request,
+        )
+        setResult(data)
+      } else {
+        const data = await postSimulation<ApiTypes.MonteCarloSummary>(
+          "simulate-monte-carlo",
+          monteCarloRequest,
+        )
+        setMonteCarloResult(data)
+      }
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error ? error.message : "The simulation request failed.",
+      )
+    } finally {
+      setIsRunning(false)
     }
   }
 
@@ -529,7 +579,7 @@ function App() {
           Currency
           <select
             value={currencyType}
-            onChange={(event) => setCurrencyType(event.target.value as "GBP" | "USD")}  // asserts type
+            onChange={(event) => setCurrencyType(event.target.value as "GBP" | "USD")}
           >
             <option value="GBP">GBP (£)</option>
             <option value="USD">USD ($)</option>
@@ -545,7 +595,7 @@ function App() {
               <h3>{section.title}</h3>
               {section.fields.map((field) => (
                 <label className="field-row" key={field.key}>
-                  {field.label + ":\t" + (field.format === "money" ? (currencyType == "GBP" ? "£" : "$") + "\t" : "")}
+                  {field.label + ":\t" + (field.format === "money" ? currencySymbol + "\t" : "")}
                   <NumberInput
                     step={field.step ?? 1}
                     value={field.format === "percent" ? Math.round(request.baseline[field.key] * 100) : request.baseline[field.key]}
@@ -560,7 +610,7 @@ function App() {
               ))}
             </section>
           ))}
-        </div>  {/*really should just be made into a custom component used for baseline and experiment*/}
+        </div>
         <div className='input-column'>
           <h2>Experiment</h2>
 
@@ -581,7 +631,7 @@ function App() {
               <h3>{section.title}</h3>
               {section.fields.map((field) => (
                 <label className="field-row" key={field.key}>
-                  {field.label + ":\t" + (field.format === "money" ? (currencyType == "GBP" ? "£" : "$") + "\t" : field.format === "percent" ? "+" : "")}
+                  {field.label + ":\t" + (field.format === "money" ? currencySymbol + "\t" : field.format === "percent" ? "+" : "")}
                   <NumberInput
                     step={field.step ?? 1}
                     value={field.format === "percent" ? Math.round(request.experiment[field.key] * 100) : request.experiment[field.key]}
@@ -605,7 +655,7 @@ function App() {
               {section.fields.map((field) => (
                 <label className="range-field" key={field.key}>
                   <span className="range-field-title">
-                    {field.label + "\t" + (field.format === "money" ? (currencyType == "GBP" ? "(£)" : "($)") + "\t" : field.format === "percent" ? "(%)" : "")} {field.info && <InfoTip text={field.info} />}
+                    {field.label + "\t" + (field.format === "money" ? `(${currencySymbol})\t` : field.format === "percent" ? "(%)" : "")} {field.info && <InfoTip text={field.info} />}
                   </span>
                   <div className="range-row">
                     {ExperimentBoundRange.map((bound) => (
@@ -644,10 +694,13 @@ function App() {
           }
         />
         </label>
-      <button className="primary-button" onClick={runSimulation}>
-        Run Simulation
+      <button className="primary-button" onClick={runSimulation} disabled={isRunning}>
+        {isRunning ? "Running..." : "Run Simulation"}
       </button>
       </div>
+      {errorMessage && (
+        <p className="simulation-error" role="alert">{errorMessage}</p>
+      )}
       {result && simulationMode === "deterministic" && (
         <>
           <section className="chart-section">

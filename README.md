@@ -1,91 +1,88 @@
-# biz-experiment-sim
-Simulating outcomes for business experiments
+# Business Experiment Simulator
 
-Lightweight product-metric simulation tool for modelling how product and business experiments affecting acquisition, retention, conversion, revenue, cost metrics, and net profit over time.
+A small decision-support tool for comparing a product baseline with a proposed experiment. It models acquisition, activation, retention, conversion, revenue and costs over time, then presents deterministic forecasts and Monte Carlo risk estimates.
 
-This simulator compares a baseline model against an experimental scenario & visualises the difference through deterministic forecasts and Monte Carlo risk analysis
+The model is intentionally transparent. It is useful for testing assumptions and comparing scenarios, not as a substitute for measured data or a forecasting system trained on historical outcomes.
 
-![main page](image.png)
-![deterministic result snapshot](image-1.png)
-![monte carlo result snapshot](image-2.png)
+![Input dashboard](image.png)
+![Deterministic results](image-1.png)
+![Monte Carlo results](image-2.png)
 
-## Purpose
+## What it does
 
-This project explores how product & business experiments can be compared through simple deterministic modelling. It is designed as an internal decision tool rather than a prediction engine.
+- Projects baseline and experiment performance over 1 to 72 months
+- Charts active users, paying users, monthly profit and cumulative profit
+- Estimates the isolated sensitivity of profit to each changed input
+- Samples uncertain experiment inputs from triangular distributions
+- Reports P10, median and P90 profit uplift
+- Reports the probability of beating baseline and the probability of losing money
+- Validates request and response shapes through FastAPI and Pydantic
 
-It answers questions such as:
-- If activation improves, does the experiment actually beat the baseline?
-- What is the upside most driven by?
-- How sensitive is the outcome to uncertainty?
-- What is the probability that the experiment beats the baseline?
-- What is the risk that this experiment loses money?
+## Model
 
-## Features
+For each month:
 
-- Baseline metric inputs
-- Experiment/change inputs
-- 1-72 month simulation window
-- Baseline vs experiment comparison
-- Profit & userbase charts
-- Driver impact breakdown
-- Monte Carlo uncertainty simulation
-- P10/median/P90 uplift baseline
-- Probability of loss
-- Uplift distribution histogram
+```text
+retained users = previous active users * retention rate
+activated users = new users * activation rate
+active users = retained users + activated users
+paying users = active users * conversion rate
+revenue = paying users * average revenue per paying user
+net profit = revenue * gross margin - acquisition cost - fixed cost
+```
 
-## Simulation Model
+Acquisition, activation, average revenue per paying user, acquisition cost and fixed cost changes are multiplicative. Retention, conversion and gross margin changes are percentage-point changes. Probability-like rates are clamped to the range from zero to one, while monetary and user-count inputs cannot fall below zero.
 
-The *deterministic* simulator applies experiment changes to the baseline model and projects the results month by month.
+The driver breakdown is a one-factor sensitivity view. Each changed input is applied independently against the baseline and ranked by absolute profit impact. It is not causal attribution and does not divide interaction effects between drivers.
 
-Core metrics:
-- Starting users
-- New users per month
-- Activation rate
-- Monthly retention rate
-- Conversion rate
-- Average revenue per paying user
-- Customer acquisition cost
-- Gross margin rate
-- Fixed monthly cost
+## Monte Carlo mode
 
-& the model tracks:
+Each uncertain experiment input is described by a minimum, expected and maximum value. Every run samples each input independently from a triangular distribution, applies that sampled scenario across the full forecast period and compares it with the deterministic baseline.
 
-- Activated users
-- Retained users
-- Active users
-- Paying users
-- Monthly revenue
-- Monthly net profit
-- Cumulative net profit
+Current assumptions:
 
-## Monte Carlo Simulation Mode
+- Input distributions are independent
+- The expected value is the mode of each triangular distribution
+- A sampled scenario stays constant throughout one run
+- "Chance to lose money" means absolute experiment profit below zero
+- Results describe the supplied assumptions; they do not infer uncertainty from historical data
 
-The *Monte Carlo* simulator allows experiment assumptions to be entered as ranges rather than exact values.
-For each run, the simulator samples values from the supplied ranges via a triangular randomness then runs the same simulation model. The resulting uplift values are aggregated into:
-- P10 net profit uplift
-- Median net profit uplift
-- Chance to beat baseline
-- Chance to lose money
-- Histogram buckets for uplift distribution
+## Architecture
 
-Histogram buckets are bounded by zero and bucket amount is dynamic based off of the % of each sign.
+- **Frontend:** React, TypeScript, Vite and Recharts
+- **Backend:** Python, FastAPI and Pydantic
+- **Contract:** JSON request and response models at `/simulate` and `/simulate-monte-carlo`
+- **Quality checks:** pytest, ESLint, TypeScript compilation and a production Vite build in GitHub Actions
 
-Assumptions:
-- Each experiment metric varies independently
-- The expected value is the most likely value (triangular randomness)
-- The simulation repeats the same sampled experiment across the full period, not by-month
-- The model compares sampled experiment profit against the *deterministic* baseline
-- 'Chance to lose money' is absolute, not relative to baseline
+## Local setup
 
-## Stack
+Start the API:
 
-React + TSX // frontend
-Python // backend
-Rechart // charts
-FastAPI // API endpoints
-Pydantic // strict request/response validation
-vite // local frontend development
+```powershell
+cd backend
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install -r requirements-dev.txt
+python -m uvicorn app.main:app --reload
+```
 
-## Planned Improvements
-- Scenario comparison
-- Deployment build (?)
+Start the frontend in a second terminal:
+
+```powershell
+cd frontend
+npm install
+npm run dev
+```
+
+The frontend uses `http://127.0.0.1:8000` by default. Copy `frontend/.env.example` to `frontend/.env` to set another API URL. Set `FRONTEND_ORIGIN` for the API when the browser origin is not `http://localhost:5173`.
+
+## Verification
+
+```powershell
+cd backend
+python -m pytest
+
+cd ..\frontend
+npm run lint
+npm run build
+```
